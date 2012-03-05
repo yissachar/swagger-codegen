@@ -9,4 +9,9 @@ version.properties
 lib/*
 build/*
 generated-files/*
+<<<<<<< HEAD
 client
+=======
+*.swp
+*.swo
+>>>>>>> master

@@ -41,6 +41,8 @@ import $import$
  */
 object $resource$ {
 
+    var apiInvoker:APIInvoker = null;
+
 $methods:{ method |
     /**
      * $method.title$
@@ -60,8 +62,7 @@ $if(method.hasArguments)$
 $endif$
 
      @throws(classOf[APIException])
-     def $method.name$($method.argumentDefinitions; separator=", "$) $if(method.hasResponseValue)$:$method.returnValue$$endif$ = {
-
+     def $method.name$($method.argumentDefinitions; separator=", "$)$if(method.hasResponseValue)$: $if(method.returnValueList)$$method.returnValue$$else$Option[$method.returnValue$]$endif$$endif$ = {
         //parse inputs
         var resourcePath = "$method.resourcePath$".replace("{format}","json")
         val method = "$method.methodType$";
@@ -104,30 +105,46 @@ $method.pathParameters:{ argument |
 $endif$    
         //make the API Call
 $if(method.hasResponseValue)$
+    var response: String = null
+    try {
 	$if(method.postObject)$
-        val response = APIInvoker.getApiInvoker.invokeAPI(resourcePath, method, queryParams, postData, headerParams)
+        response = apiInvoker.invokeAPI(resourcePath, method, queryParams, postData, headerParams)
 	$else$
-        val response = APIInvoker.getApiInvoker.invokeAPI(resourcePath, method, queryParams, null, headerParams)
+        response = apiInvoker.invokeAPI(resourcePath, method, queryParams, null, headerParams)
 	$endif$
+    } catch {
+      case ex: APIException if ex.getCode == 404 => 
+        $if(method.returnValueList)$        return List()
+        $else$        return None
+        $endif$
+      case ex: APIException => throw ex
+    }
 $else$
 	$if(method.postObject)$
-        APIInvoker.getApiInvoker.invokeAPI(resourcePath, method, queryParams, postData, headerParams)
+        apiInvoker.invokeAPI(resourcePath, method, queryParams, postData, headerParams)
 	$else$
-        APIInvoker.getApiInvoker.invokeAPI(resourcePath, method, queryParams, null, headerParams)
+        apiInvoker.invokeAPI(resourcePath, method, queryParams, null, headerParams)
 	$endif$
 $endif$
 $if(!method.responseVoid)$
 
 $if(method.hasResponseValue)$
-        if(null == response || response.length() == 0){
-            null
+$if(!method.returnValueList)$
+        if(null == response){ 
+            return None
         }
+$endif$
 $endif$
 $if(!method.returnValueList)$
 $if(method.hasResponseValue)$
         //create output objects if the response has more than one object
         val responseObject = APIInvoker.deserialize(response, classOf[$method.returnClassName$]).asInstanceOf[$method.returnValue$]
+
+$if(method.returnValueList)$
         responseObject
+$else$
+        Some(responseObject)
+$endif$
 $endif$
 $endif$        
 $if(method.returnValueList)$
@@ -146,4 +163,15 @@ $endif$
 $endif$        
      }
 }$
+
+    def  getApiInvoker():APIInvoker = {
+        if(null == apiInvoker){
+            apiInvoker = APIInvoker.getApiInvoker();
+        }
+        return apiInvoker;
+    }
+
+    def setApiInvoker(invoker:APIInvoker) = {
+        apiInvoker = invoker;
+    }
 }
