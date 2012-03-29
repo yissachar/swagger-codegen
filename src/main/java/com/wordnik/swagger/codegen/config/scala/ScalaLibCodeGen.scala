@@ -90,4 +90,5 @@ class ScalaLibCodeGen(
     FileUtil.copyDirectoryFromUrl(this.getClass.getClassLoader.getResource("conf/scala/structure/src/main/java"), new File(config.getLibraryHome() + "/src/main/java"));
     config
   }
+
 }

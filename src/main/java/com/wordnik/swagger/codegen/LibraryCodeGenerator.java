@@ -167,7 +167,8 @@ public class LibraryCodeGenerator {
                         logger.warn("Model " + model.getName() + " doesn't have any properties");
                     } else {
                         for(ModelField param : model.getFields()){
-                            for(String importDef : param.getFieldDefinition(this.getDataTypeMappingProvider(), config, nameGenerator).getImportDefinitions()){
+                            param.setName(reservedWordMapper.translate(param.getName()));
+                            for(String importDef : param.getFieldDefinition(this.getDataTypeMappingProvider(), config, nameGenerator, reservedWordMapper).getImportDefinitions()){
                                 if(!imports.contains(importDef)){
                                     imports.add(importDef);
                                 }
@@ -213,7 +214,7 @@ public class LibraryCodeGenerator {
                                         imports.addAll(this.config.getDefaultModelImports());
 		    		    				for(ModelField param : model.getFields()){
 		    		    					param.setName(reservedWordMapper.translate(param.getName()));
-		    		    					for(String importDef : param.getFieldDefinition(this.getDataTypeMappingProvider(), config, nameGenerator).getImportDefinitions()){
+		    		    					for(String importDef : param.getFieldDefinition(this.getDataTypeMappingProvider(), config, nameGenerator, reservedWordMapper).getImportDefinitions()){
 		    		    						if(!imports.contains(importDef)){
 		    		    							imports.add(importDef);
 		    		    						}
@@ -277,7 +278,7 @@ public class LibraryCodeGenerator {
                                                     valuePrefix = valueSuffix = "";
                                                 };
                                                 String namePrefix = "";
-                                                if(isNameStartsWithInteger(allowableValue) && !canEnumNameStartsWithNumber()){
+                                                if((isNameStartsWithInteger(allowableValue) && !canEnumNameStartsWithNumber()) || isEnumNumber(allowableValue) ){
                                                     namePrefix = "ENUM_";
                                                 }
                                                 template.setAttribute("values.{name,value}",
@@ -309,6 +310,15 @@ public class LibraryCodeGenerator {
         return false;
     }
 
+    private boolean isEnumNumber(String name) {
+        try{
+            new Integer(name);
+            return true;
+        }catch(Throwable t){
+            return false;
+        }
+    }
+    
     private void generateOutputWrappers(List<Resource> resources, StringTemplateGroup templateGroup) {
         List<String> generatedClasses = new ArrayList<String>();
         StringTemplate template = templateGroup.getInstanceOf(languageConfig.getTemplateLocation()+"/"+WRAPPER_OBJECT_TEMPLATE);
@@ -334,7 +344,8 @@ public class LibraryCodeGenerator {
                                         List<String> imports = new ArrayList<String>();
                                         imports.addAll(this.config.getDefaultModelImports());
                                         for(ModelField param : model.getFields()){
-                                            for(String importDef : param.getFieldDefinition(this.getDataTypeMappingProvider(), config, nameGenerator).getImportDefinitions()){
+                                            param.setName(reservedWordMapper.translate(param.getName()));
+                                            for(String importDef : param.getFieldDefinition(this.getDataTypeMappingProvider(), config, nameGenerator, reservedWordMapper).getImportDefinitions()){
                                                 if(!imports.contains(importDef)){
                                                     imports.add(importDef);
                                                 }
@@ -381,6 +392,11 @@ public class LibraryCodeGenerator {
                 if(className != null){
 	                List<ResourceMethod> filteredMethods = new ArrayList<ResourceMethod>();
 	                for(ResourceMethod method:methods){
+                        if(method.getArguments() != null){
+                            for(MethodArgument methodArg: method.getArguments()){
+                                methodArg.setName(reservedWordMapper.translate(methodArg.getName()));
+                            }
+                        }
 	                    if(!this.getCodeGenRulesProvider().isMethodIgnored(className, method.getName())){
 	                        filteredMethods.add(method);
 	                    }
@@ -425,7 +441,7 @@ public class LibraryCodeGenerator {
         imports.addAll(this.config.getDefaultModelImports());
         imports.addAll(this.getDataTypeMappingProvider().getListIncludes());
 		for(ModelField param : model.getFields()){
-			for(String importDef : param.getFieldDefinition(this.getDataTypeMappingProvider(), config, nameGenerator).getImportDefinitions()){
+			for(String importDef : param.getFieldDefinition(this.getDataTypeMappingProvider(), config, nameGenerator, reservedWordMapper).getImportDefinitions()){
 				if(!imports.contains(importDef)){
 					imports.add(importDef);
 				}
