@@ -63,11 +63,11 @@ class ScalaLibCodeGen(
   if (null != configPath) {
     initializeWithConfigPath(configPath)
     this.setDataTypeMappingProvider(new ScalaDataTypeMappingProvider())
-    this.setNameGenerator(new CamelCaseNamingPolicyProvider())
+    this.setNameGenerator(new ScalaNamingPolicyProvider())
   } else {
     initialize(apiServerURL, apiKey, modelPackageName, apiPackageName, classOutputDir, libraryHome)
     setDataTypeMappingProvider(new ScalaDataTypeMappingProvider())
-    setNameGenerator(new CamelCaseNamingPolicyProvider())
+    setNameGenerator(new ScalaNamingPolicyProvider())
   }
 
   def this(apiServerURL: String, apiKey: String, modelPackageName: String, apiPackageName: String, classOutputDir: String, libraryHome: String) = this(apiServerURL, apiKey, modelPackageName, apiPackageName, classOutputDir, libraryHome, null)
