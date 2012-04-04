@@ -100,7 +100,7 @@ public class SwaggerResourceDocReader {
             String response = clientResponse.getEntity(String.class);
             try {
                 ObjectMapper mapper = new ObjectMapper();
-                mapper.getDeserializationConfig().set(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                mapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
                 Resource aResourceDoc = deserializeResource(response, mapper);
                 resourceDocs.add(aResourceDoc);
             } catch (IOException ioe) {
@@ -151,7 +151,7 @@ public class SwaggerResourceDocReader {
         String response = clientResponse.getEntity(String.class);
         try {
             ObjectMapper mapper = new ObjectMapper();
-            mapper.getDeserializationConfig().set(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            mapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             resourceApi = deserializeResource(response, mapper);
 
             for(Endpoint api: resourceApi.getEndPoints()){

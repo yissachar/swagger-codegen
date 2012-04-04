@@ -29,6 +29,7 @@ import javax.ws.rs.core.MultivaluedMap;
 
 import com.wordnik.swagger.runtime.exception.APIException;
 import com.wordnik.swagger.runtime.exception.APIExceptionCodes;
+import org.codehaus.jackson.map.DeserializationConfig;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.map.DeserializationConfig.Feature;
 import org.codehaus.jackson.map.SerializationConfig;
@@ -65,10 +66,10 @@ public class APIInvoker {
 	protected static String DELETE = "DELETE";
 	public static ObjectMapper mapper = new ObjectMapper();
 	static{
-        mapper.getDeserializationConfig().set(Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        mapper.getSerializationConfig().set(SerializationConfig.Feature.FAIL_ON_EMPTY_BEANS, false);
+        mapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.configure(SerializationConfig.Feature.WRITE_NULL_PROPERTIES, false);
         mapper.configure(SerializationConfig.Feature.WRITE_DATES_AS_TIMESTAMPS, false);
+        mapper.configure(SerializationConfig.Feature.FAIL_ON_EMPTY_BEANS, false);
         apiClient = Client.create();
 	}
 
