@@ -260,7 +260,7 @@ public class APIInvoker {
         	if(input != null) {
 	            return mapper.writeValueAsString(input);
         	}else{
-        		return "";
+        		return "{}";
         	}
         } catch (IOException ioe) {
             throw new APIException(APIExceptionCodes.ERROR_CONVERTING_JAVA_TO_JSON, "Error in coverting input java to json : " + ioe.getMessage(), ioe);
