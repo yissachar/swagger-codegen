@@ -259,7 +259,11 @@ public class APIInvoker {
 	public static String serialize(Object input) throws APIException {
         try {
         	if(input != null) {
-	            return mapper.writeValueAsString(input);
+		    if (input instanceof String) {
+			return (String)input;
+		    } else {
+			return mapper.writeValueAsString(input);
+		    }
         	}else{
         		return "{}";
         	}
