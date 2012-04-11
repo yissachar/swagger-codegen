@@ -94,7 +94,7 @@ public class APIInvoker {
 		}
 		invoker.setLoggingEnable(enableLogging);
         //initialize the logger if needed
-        if(loggingEnabled) {
+        if(loggingEnabled && apiInvoker == null) {
         	if(logger == null) {
         		apiClient.addFilter(new LoggingFilter());
         	}else{
