@@ -191,7 +191,12 @@ public class APIInvoker {
 
 
         //set the required HTTP headers
-        Builder builder = aResource.type("application/json");
+        Builder builder = null;
+        if(postData != null && postData.getClass().isAssignableFrom(String.class)) {
+            builder = aResource.type("text/plain");
+        }else {
+            builder = aResource.type("application/json");
+        }
         for(String key : headerMap.keySet()){
             builder.header(key, headerMap.get(key));
         }
