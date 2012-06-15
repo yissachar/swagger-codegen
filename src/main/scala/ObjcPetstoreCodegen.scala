@@ -9,8 +9,10 @@ object ObjcPetstoreCodegen extends ObjcCodegen {
   // supporting classes
   override def supportingFiles =
     List(
-      ("JSONKit.h", destinationDir, "JSONKit.h"),
-      ("JSONKit.m", destinationDir, "JSONKit.m"),
+      ("SwaggerObject.h", destinationDir, "SwaggerObject.h"),
+      ("SwaggerObject.m", destinationDir, "SwaggerObject.m"),
+      ("ApiInvoker.h", destinationDir, "ApiInvoker.h"),
+      ("ApiInvoker.m", destinationDir, "ApiInvoker.m"),
       ("Date.h", destinationDir, "Date.h"),
       ("Date.m", destinationDir, "Date.m"))
 }
