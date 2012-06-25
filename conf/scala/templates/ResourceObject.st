@@ -130,7 +130,7 @@ $if(!method.responseVoid)$
 
 $if(method.hasResponseValue)$
 $if(!method.returnValueList)$
-        if(null == response){ 
+        if(null == response || response.length == 0){
             return None
         }
 $endif$
