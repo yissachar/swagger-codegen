@@ -2,8 +2,9 @@ package com.wordnik.swagger.codegen
 
 import com.wordnik.swagger.core._
 
-import com.wordnik.swagger.codegen.util.{ CoreUtils, SwaggerSpecUtil }
+import com.wordnik.swagger.codegen.util.CoreUtils
 import com.wordnik.swagger.codegen.language.CodegenConfig
+import com.wordnik.swagger.codegen.spec.SwaggerSpec._
 
 import org.fusesource.scalate._
 import org.fusesource.scalate.layout.DefaultLayoutStrategy
@@ -15,6 +16,7 @@ import java.io.FileWriter
 import scala.io.Source
 import scala.collection.mutable.{ HashMap, ListBuffer, HashSet }
 import scala.collection.JavaConversions._
+import org.apache.commons.io.FileUtils
 
 object Codegen {
   val templates = new HashMap[String, (TemplateEngine, Template)]
@@ -86,8 +88,8 @@ class Codegen(config: CodegenConfig) {
       case true =>
     })
     allImports --= config.defaultIncludes
-    allImports --= SwaggerSpecUtil.primitives
-    allImports --= SwaggerSpecUtil.containers
+    allImports --= primitives
+    allImports --= containers
     allImports.foreach(i => includedModels.contains(i) match {
       case false => {
         config.importMapping.containsKey(i) match {
@@ -103,7 +105,8 @@ class Codegen(config: CodegenConfig) {
       val engine = new TemplateEngine(Some(rootDir))
       val template = engine.compile(
         TemplateSource.fromText(config.templateDir + File.separator + templateFile,
-          Source.fromFile(config.templateDir + File.separator + templateFile).mkString))
+//          Source.fromFile(config.templateDir + File.separator + templateFile).mkString))
+          Source.fromInputStream(getClass.getClassLoader.getResourceAsStream(config.templateDir + File.separator + templateFile)).mkString))
       val t = Tuple2(engine, template)
       Codegen.templates += templateFile -> t
       t
@@ -274,7 +277,9 @@ class Codegen(config: CodegenConfig) {
 
   def modelToMap(className: String, model: DocumentationSchema): Map[String, AnyRef] = {
     val data: HashMap[String, AnyRef] =
-      HashMap("classname" -> className,
+      HashMap(
+        "classname" -> className,
+        "classVarName" -> config.toVarName(className), // suggested name of object created from this class
         "modelPackage" -> config.modelPackage,
         "newline" -> "\n")
 
@@ -282,36 +287,59 @@ class Codegen(config: CodegenConfig) {
 
     val imports = new HashSet[AnyRef]
     model.properties.map(prop => {
-      val obj = prop._2
-      val dt = obj.getType
+      val propertyDocSchema = prop._2
+      val dt = propertyDocSchema.getType
 
       var baseType = dt
       // import the object inside the container
-      if (obj.items != null) {
+      if (propertyDocSchema.items != null) {
         // import the container
         imports += Map("import" -> dt)
-        if (obj.items.ref != null) baseType = obj.items.ref
-        else if (obj.items.getType != null) baseType = obj.items.getType
+        if (propertyDocSchema.items.ref != null) baseType = propertyDocSchema.items.ref
+        else if (propertyDocSchema.items.getType != null) baseType = propertyDocSchema.items.getType
       }
-      config.typeMapping.contains(baseType) match {
-        case true =>
-        case false => imports += Map("import" -> config.typeMapping.getOrElse(baseType, baseType))
+      baseType = config.typeMapping.contains(baseType) match {
+        case true =>  config.typeMapping(baseType)
+        case false => imports += Map("import" -> config.typeMapping.getOrElse(baseType, baseType)); baseType
       }
+
+      val isList = (if(isListType(propertyDocSchema.getType)) true else None)
+      val isMap = (if(isMapType(propertyDocSchema.getType)) true else None)
+      val isNotContainer = if(!isListType(propertyDocSchema.getType) && !isMapType(propertyDocSchema.getType)) true else None
+      val isContainer = if(isListType(propertyDocSchema.getType) || isMapType(propertyDocSchema.getType)) true else None
 
       val properties =
         HashMap(
           "name" -> config.toVarName(prop._1),
+          "nameSingular" ->  {
+            val name = config.toVarName(prop._1)
+            if (name.endsWith("s") && name.length > 1) name.substring(0, name.length - 1) else name
+          },
+          "baseType" -> {
+            if(primitives.contains(baseType.toLowerCase))
+              baseType
+            else
+              config.modelPackage match {
+                case Some(p) => p + "." + baseType
+                case _ => baseType
+              }
+          },
+          "baseTypeVarName" -> config.toVarName(baseType),
           "baseName" -> prop._1,
-          "datatype" -> config.toDeclaration(obj)._1,
-          "defaultValue" -> config.toDeclaration(obj)._2,
-          "description" -> obj.description,
-          "notes" -> obj.notes,
-          "required" -> obj.required.toString,
-          "getter" -> config.toGetter(prop._1, config.toDeclaration(obj)._1),
-          "setter" -> config.toSetter(prop._1, config.toDeclaration(obj)._1),
+          "datatype" -> config.toDeclaration(propertyDocSchema)._1,
+          "defaultValue" -> config.toDeclaration(propertyDocSchema)._2,
+          "description" -> propertyDocSchema.description,
+          "notes" -> propertyDocSchema.notes,
+          "required" -> propertyDocSchema.required.toString,
+          "getter" -> config.toGetter(prop._1, config.toDeclaration(propertyDocSchema)._1),
+          "setter" -> config.toSetter(prop._1, config.toDeclaration(propertyDocSchema)._1),
+          "isList" -> isList,
+          "isMap" -> isMap,
+          "isContainer" -> isContainer,
+          "isNotContainer" -> isNotContainer,
           "hasMore" -> "true")
 
-      SwaggerSpecUtil.primitives.contains(baseType) match {
+      primitives.contains(baseType.toLowerCase) match {
         case true => properties += "isPrimitiveType" -> "true"
         case _ => properties += "complexType" -> baseType
       }
@@ -341,23 +369,45 @@ class Codegen(config: CodegenConfig) {
       val outputDir = file._2
       val destFile = file._3
 
-      val output = {
-        if (srcTemplate.endsWith(".mustache")) {
+      val outputFilename = outputDir.replaceAll("\\.", File.separator) + File.separator + destFile
+      val outputFolder = new File(outputFilename).getParent
+      new File(outputFolder).mkdirs
+
+      if (srcTemplate.endsWith(".mustache")) {
+        val output = {
           val template = engine.compile(
             TemplateSource.fromText(config.templateDir + File.separator + srcTemplate,
-              Source.fromFile(config.templateDir + File.separator + srcTemplate).mkString))
-
+//            Source.fromFile(config.templateDir + File.separator + srcTemplate).mkString))
+          Source.fromInputStream(getClass.getClassLoader.getResourceAsStream(config.templateDir + File.separator + srcTemplate)).mkString))
           engine.layout(config.templateDir + File.separator + srcTemplate, template, data.toMap)
-        } else scala.io.Source.fromFile(config.templateDir + File.separator + srcTemplate).mkString
+        }
+        val fw = new FileWriter(outputFilename, false)
+        fw.write(output + "\n")
+        fw.close()
+        println("wrote " + outputFilename)
+      } else {
+        FileUtils.copyInputStreamToFile(getClass.getClassLoader.getResourceAsStream(config.templateDir + File.separator + srcTemplate), new File(outputFilename))
+        println("copied " + outputFilename)
       }
-      val filename = outputDir.replaceAll("\\.", File.separator) + File.separator + destFile
-
-      val outputFolder = new File(filename).getParent
-      new File(outputFolder).mkdirs
-      val fw = new FileWriter(filename, false)
-      fw.write(output + "\n")
-      fw.close()
-      println("wrote " + filename)
     })
+  }
+
+  protected def isListType(dt: String) = isCollectionType(dt, "List") || isCollectionType(dt, "Array")
+
+  protected def isMapType(dt: String) = isCollectionType(dt, "Map")
+
+  protected def isCollectionType(dt: String, str: String) = {
+    if(dt.equals(str))
+      true
+    else
+      dt.indexOf("[") match {
+        case -1 => false
+        case n: Int => {
+          if (dt.substring(0, n) == str) {
+            true
+          } else false
+        }
+        case _ => false
+      }
   }
 }

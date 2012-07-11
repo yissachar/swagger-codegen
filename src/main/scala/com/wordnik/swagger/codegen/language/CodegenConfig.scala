@@ -24,10 +24,7 @@ abstract class CodegenConfig {
   def modelPackage: Option[String] = None
   def escapeReservedWord(word: String) = word
 
-  def apiNameFromPath(apiPath: String) = {
-    val name = apiPath.split("/")(1).split("\\.")(0).replaceAll("/", "")
-    name.charAt(0).toUpperCase + name.substring(1) + "Api"
-  }
+  def apiNameFromPath(apiPath: String): String
 
   // only process these apis (by name)
   val apisToProcess = new HashSet[String]
@@ -87,12 +84,13 @@ abstract class CodegenConfig {
   }
 
   def toDefaultValue(datatype: String, defaultValue: String): Option[String] = {
+
     if (defaultValue != "" && defaultValue != null) {
       toDeclaredType(datatype) match {
         case "int" => Some(defaultValue)
         case "long" => Some(defaultValue)
         case "double" => Some(defaultValue)
-        case "string" => {
+        case x if x == "string" || x == "String" => {
           defaultValue match {
             case e: String => Some("\"" + defaultValue + "\"")
             case _ => None
