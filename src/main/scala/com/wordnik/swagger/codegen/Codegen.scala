@@ -103,10 +103,11 @@ class Codegen(config: CodegenConfig) {
     val rootDir = new java.io.File(".")
     val engineData = Codegen.templates.getOrElse(templateFile, {
       val engine = new TemplateEngine(Some(rootDir))
+      println("pre-compile")
       val template = engine.compile(
         TemplateSource.fromText(config.templateDir + File.separator + templateFile,
 //          Source.fromFile(config.templateDir + File.separator + templateFile).mkString))
-          Source.fromInputStream(getClass.getClassLoader.getResourceAsStream(config.templateDir + File.separator + templateFile)).mkString))
+				Source.fromInputStream(getClass.getClassLoader.getResourceAsStream(config.templateDir + File.separator + templateFile)).mkString))
       val t = Tuple2(engine, template)
       Codegen.templates += templateFile -> t
       t
