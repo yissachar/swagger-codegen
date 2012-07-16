@@ -98,7 +98,6 @@ abstract class BasicGenerator extends CodegenConfig with PathUtil {
       }
     }
     codegen.writeSupportingClasses
-    exit(0)
   }
 
   def apiNameFromPath(apiPath: String) = makeApiNameFromPath(apiPath)
