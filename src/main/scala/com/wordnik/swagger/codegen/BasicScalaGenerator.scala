@@ -12,14 +12,16 @@ class BasicScalaGenerator extends BasicGenerator {
     "Long",
     "Float",
     "Double",
-    "Boolean")
+    "Boolean",
+    "Any")
 
   override def typeMapping = Map(
     "string" -> "String",
     "int" -> "Int",
     "float" -> "Float",
     "long" -> "Long",
-    "double" -> "Double")
+    "double" -> "Double",
+    "object" -> "Any")
     
   // template used for models
   modelTemplateFiles += "model.mustache" -> ".scala"
@@ -71,6 +73,6 @@ class BasicScalaGenerator extends BasicGenerator {
 
   // supporting classes
   override def supportingFiles = List(
-    ("apiInvoker.mustache", "generated-code/scala/src/main/scala/com/wordnik/client", "ApiInvoker.scala"),
+    ("apiInvoker.mustache", destinationDir + "com/wordnik/client", "ApiInvoker.scala"),
     ("pom.mustache", "generated-code/scala", "pom.xml"))
 }

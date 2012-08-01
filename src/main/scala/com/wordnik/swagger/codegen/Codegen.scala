@@ -104,10 +104,14 @@ class Codegen(config: CodegenConfig) {
     val rootDir = new java.io.File(".")
     val engineData = Codegen.templates.getOrElse(templateFile, {
       val engine = new TemplateEngine(Some(rootDir))
+      val srcName = config.templateDir + File.separator + templateFile
+      val srcStream = getClass.getClassLoader.getResourceAsStream(srcName)
+      if (srcStream == null)
+        throw new Exception("Missing template: " + srcName)
       println("pre-compile")
       val template = engine.compile(
         TemplateSource.fromText(config.templateDir + File.separator + templateFile,
-				Source.fromInputStream(getClass.getClassLoader.getResourceAsStream(config.templateDir + File.separator + templateFile)).mkString))
+          Source.fromInputStream(srcStream).mkString))
       val t = Tuple2(engine, template)
       Codegen.templates += templateFile -> t
       t
@@ -196,6 +200,7 @@ class Codegen(config: CodegenConfig) {
             params += "required" -> param.required.toString
             headerParams += params.clone
           }
+          case x @ _ => throw new Exception("Unknown parameter type: " + x)
         }
         paramList += params
       })
@@ -302,24 +307,24 @@ class Codegen(config: CodegenConfig) {
         else if (propertyDocSchema.items.getType != null) baseType = propertyDocSchema.items.getType
       }
       baseType = config.typeMapping.contains(baseType) match {
-        case true =>  config.typeMapping(baseType)
+        case true => config.typeMapping(baseType)
         case false => imports += Map("import" -> config.typeMapping.getOrElse(baseType, baseType)); baseType
       }
 
-      val isList = (if(isListType(propertyDocSchema.getType)) true else None)
-      val isMap = (if(isMapType(propertyDocSchema.getType)) true else None)
-      val isNotContainer = if(!isListType(propertyDocSchema.getType) && !isMapType(propertyDocSchema.getType)) true else None
-      val isContainer = if(isListType(propertyDocSchema.getType) || isMapType(propertyDocSchema.getType)) true else None
+      val isList = (if (isListType(propertyDocSchema.getType)) true else None)
+      val isMap = (if (isMapType(propertyDocSchema.getType)) true else None)
+      val isNotContainer = if (!isListType(propertyDocSchema.getType) && !isMapType(propertyDocSchema.getType)) true else None
+      val isContainer = if (isListType(propertyDocSchema.getType) || isMapType(propertyDocSchema.getType)) true else None
 
       val properties =
         HashMap(
           "name" -> config.toVarName(prop._1),
-          "nameSingular" ->  {
+          "nameSingular" -> {
             val name = config.toVarName(prop._1)
             if (name.endsWith("s") && name.length > 1) name.substring(0, name.length - 1) else name
           },
           "baseType" -> {
-            if(primitives.contains(baseType.toLowerCase))
+            if (primitives.contains(baseType.toLowerCase))
               baseType
             else
               config.modelPackage match {
@@ -378,21 +383,25 @@ class Codegen(config: CodegenConfig) {
 
       if (srcTemplate.endsWith(".mustache")) {
         val output = {
+          val resourceName = config.templateDir + File.separator + srcTemplate
+          val resourceStream = getClass.getClassLoader.getResourceAsStream(resourceName)
+          if (resourceStream == null)
+            throw new Exception("Resource not found: " + resourceName)
           val template = engine.compile(
-            TemplateSource.fromText(config.templateDir + File.separator + srcTemplate,
-          Source.fromInputStream(getClass.getClassLoader.getResourceAsStream(config.templateDir + File.separator + srcTemplate)).mkString))
-          engine.layout(config.templateDir + File.separator + srcTemplate, template, data.toMap)
+            TemplateSource.fromText(resourceName,
+              Source.fromInputStream(resourceStream).mkString))
+          engine.layout(resourceName, template, data.toMap)
         }
         val fw = new FileWriter(outputFilename, false)
         fw.write(output + "\n")
         fw.close()
         println("wrote " + outputFilename)
       } else {
-	val is = getClass.getClassLoader
-	  .getResourceAsStream(config.templateDir + File.separator + srcTemplate)
+        val is = getClass.getClassLoader
+          .getResourceAsStream(config.templateDir + File.separator + srcTemplate)
         FileUtils.copyInputStreamToFile(is, new File(outputFilename))
         println("copied " + outputFilename)
-	is.close
+        is.close
       }
     })
     //a shutdown method will be added to scalate in an upcoming release
@@ -404,7 +413,7 @@ class Codegen(config: CodegenConfig) {
   protected def isMapType(dt: String) = isCollectionType(dt, "Map")
 
   protected def isCollectionType(dt: String, str: String) = {
-    if(dt.equals(str))
+    if (dt.equals(str))
       true
     else
       dt.indexOf("[") match {

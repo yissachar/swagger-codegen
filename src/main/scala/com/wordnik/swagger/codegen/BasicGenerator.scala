@@ -26,7 +26,7 @@ abstract class BasicGenerator extends CodegenConfig with PathUtil {
   def m = JsonUtil.getJsonMapper
 
   def generateClient(args: Array[String]) = {
-    if(args.length == 0) {
+    if (args.length == 0) {
       throw new RuntimeException("Need url to resources.json as argument. You can also specify VM Argument -DfileMap=/path/to/folder/containing.resources.json/")
     }
     val host = args(0)
@@ -44,7 +44,12 @@ abstract class BasicGenerator extends CodegenConfig with PathUtil {
     }
 
     val basePath = getBasePath(doc.basePath)
-    val subDocs = ApiExtractor.extractApiDocs(basePath, doc.getApis().toList, apiKey)
+
+    val apis = doc.getApis
+    if (apis == null)
+      throw new Exception("No APIs specified by resource")
+    val subDocs = ApiExtractor.extractApiDocs(basePath, apis.toList, apiKey)
+
     val models = CoreUtils.extractAllModels(subDocs)
 
     new SwaggerSpecValidator(doc, subDocs).validate()
