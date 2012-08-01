@@ -24,6 +24,7 @@ class ApiClient:
                             'APIClient')
         self.apiKey = apiKey
         self.apiServer = apiServer
+        self.cookie = None
 
     def callAPI(self, resourcePath, method, queryParams, postData,
                 headerParams=None):
@@ -34,23 +35,27 @@ class ApiClient:
             for param, value in headerParams.iteritems():
                 headers[param] = value
 
-        headers['Content-type'] = 'application/json'
         headers['api_key'] = self.apiKey
+
+        if self.cookie:
+            headers['Cookie'] = self.cookie
 
         data = None
         # What can safely be JSON serialized?
         safeToDump = [str, int, float, bool]
-        if method == 'GET':
-            if queryParams:
-                # Need to remove None values, these should not be sent
-                sentQueryParams = {}
-                for param, value in queryParams.iteritems():
-                    if value != None:
-                        sentQueryParams[param] = value
-                url = url + '?' + urllib.urlencode(sentQueryParams)
-        elif method in ['POST', 'PUT', 'DELETE']:
+
+        if queryParams:
+            # Need to remove None values, these should not be sent
+            sentQueryParams = {}
+            for param, value in queryParams.iteritems():
+                if value != None:
+                    sentQueryParams[param] = value
+            url = url + '?' + urllib.urlencode(sentQueryParams)
+
+        if method in ['POST', 'PUT', 'DELETE']:
             data = postData
             if data:
+                headers['Content-type'] = 'application/json'
                 if type(postData) == list:
                     # Could be a list of objects
                     if type(postData[0]) in safeToDump:
@@ -65,10 +70,13 @@ class ApiClient:
         request = MethodRequest(method=method, url=url, headers=headers, data=data)
 
         # Make the request
-        response = urllib2.urlopen(request).read()
+        response = urllib2.urlopen(request)
+        if 'Set-Cookie' in response.headers:
+            self.cookie = response.headers['Set-Cookie']  
+        string = response.read()
 
         try:
-            data = json.loads(response)
+            data = json.loads(string)
         except ValueError: # PUT requests don't return anything
             data = None
 
