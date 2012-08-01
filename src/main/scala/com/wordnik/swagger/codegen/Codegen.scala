@@ -9,6 +9,7 @@ import com.wordnik.swagger.codegen.spec.SwaggerSpec._
 import org.fusesource.scalate._
 import org.fusesource.scalate.layout.DefaultLayoutStrategy
 import org.fusesource.scalate.mustache._
+import org.fusesource.scalate.support.ScalaCompiler
 
 import java.io.File
 import java.io.FileWriter
@@ -103,10 +104,10 @@ class Codegen(config: CodegenConfig) {
     val rootDir = new java.io.File(".")
     val engineData = Codegen.templates.getOrElse(templateFile, {
       val engine = new TemplateEngine(Some(rootDir))
+      println("pre-compile")
       val template = engine.compile(
         TemplateSource.fromText(config.templateDir + File.separator + templateFile,
-//          Source.fromFile(config.templateDir + File.separator + templateFile).mkString))
-          Source.fromInputStream(getClass.getClassLoader.getResourceAsStream(config.templateDir + File.separator + templateFile)).mkString))
+				Source.fromInputStream(getClass.getClassLoader.getResourceAsStream(config.templateDir + File.separator + templateFile)).mkString))
       val t = Tuple2(engine, template)
       Codegen.templates += templateFile -> t
       t
@@ -123,6 +124,8 @@ class Codegen(config: CodegenConfig) {
       "basePath" -> bundle.getOrElse("basePath", ""))
 
     var output = engine.layout(config.templateDir + File.separator + templateFile, template, data.toMap)
+    //a shutdown method will be added to scalate in an upcoming release
+    engine.compiler.asInstanceOf[ScalaCompiler].compiler.askShutdown
     output
   }
 
@@ -377,7 +380,6 @@ class Codegen(config: CodegenConfig) {
         val output = {
           val template = engine.compile(
             TemplateSource.fromText(config.templateDir + File.separator + srcTemplate,
-//            Source.fromFile(config.templateDir + File.separator + srcTemplate).mkString))
           Source.fromInputStream(getClass.getClassLoader.getResourceAsStream(config.templateDir + File.separator + srcTemplate)).mkString))
           engine.layout(config.templateDir + File.separator + srcTemplate, template, data.toMap)
         }
@@ -386,10 +388,15 @@ class Codegen(config: CodegenConfig) {
         fw.close()
         println("wrote " + outputFilename)
       } else {
-        FileUtils.copyInputStreamToFile(getClass.getClassLoader.getResourceAsStream(config.templateDir + File.separator + srcTemplate), new File(outputFilename))
+	val is = getClass.getClassLoader
+	  .getResourceAsStream(config.templateDir + File.separator + srcTemplate)
+        FileUtils.copyInputStreamToFile(is, new File(outputFilename))
         println("copied " + outputFilename)
+	is.close
       }
     })
+    //a shutdown method will be added to scalate in an upcoming release
+    engine.compiler.asInstanceOf[ScalaCompiler].compiler.askShutdown
   }
 
   protected def isListType(dt: String) = isCollectionType(dt, "List") || isCollectionType(dt, "Array")
