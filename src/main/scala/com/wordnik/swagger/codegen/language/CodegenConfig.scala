@@ -42,7 +42,7 @@ abstract class CodegenConfig {
   def processResponseDeclaration(responseClass: String): Option[String] = {
     responseClass match {
       case "void" => None
-      case e: String => Some(e)
+      case e: String => Some(typeMapping.getOrElse(e, e))
     }
   }
 
@@ -56,9 +56,7 @@ abstract class CodegenConfig {
   }
 
   def toDeclaredType(dataType: String): String = {
-    var f = typeMapping.getOrElse(dataType,
-      dataType.charAt(0).toUpperCase + dataType.substring(1))
-    f
+    typeMapping.getOrElse(dataType, dataType)
   }
 
   def toGetter(name: String, datatype: String) = {

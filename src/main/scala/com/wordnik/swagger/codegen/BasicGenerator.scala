@@ -66,12 +66,15 @@ abstract class BasicGenerator extends CodegenConfig with PathUtil {
             operations += Tuple3(basePath, apiPath, operation)
           }
         })
+
         operations.map(op => processOperation(op._2, op._3))
         allModels ++= CoreUtils.extractModels(subDoc)
       }
     })
 
     val apiMap = groupApisToFiles(operations.toList)
+    println("template files: " + apiTemplateFiles)
+
     for ((identifier, operationList) <- apiMap) {
       val basePath = identifier._1
       val className = identifier._2

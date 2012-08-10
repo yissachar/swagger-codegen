@@ -15,7 +15,11 @@ object ApiExtractor {
   def extractApiDocs(basePath: String, apis: List[DocumentationEndPoint], apiKey: Option[String]): List[Documentation] = {
     for (api <- apis) yield {
       val json = basePath.startsWith("http") match {
-        case true => Source.fromURL((basePath + api.path + apiKey.getOrElse("")).replaceAll(".\\{format\\}", ".json")).mkString
+        case true => {
+          println("api.path: " + api.path)
+          println("calling: " + ((basePath + api.path + apiKey.getOrElse("")).replaceAll(".\\{format\\}", ".json")))
+          Source.fromURL((basePath + api.path + apiKey.getOrElse("")).replaceAll(".\\{format\\}", ".json")).mkString
+        }
         case false => Source.fromFile((basePath + api.path).replaceAll(".\\{format\\}", ".json")).mkString
       }
       val out = m.readValue(json, classOf[Documentation])

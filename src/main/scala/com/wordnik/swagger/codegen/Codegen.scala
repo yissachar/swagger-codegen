@@ -324,7 +324,7 @@ class Codegen(config: CodegenConfig) {
             if (name.endsWith("s") && name.length > 1) name.substring(0, name.length - 1) else name
           },
           "baseType" -> {
-            if (primitives.contains(baseType.toLowerCase))
+            if (primitives.contains(baseType))
               baseType
             else
               config.modelPackage match {
@@ -347,7 +347,7 @@ class Codegen(config: CodegenConfig) {
           "isNotContainer" -> isNotContainer,
           "hasMore" -> "true")
 
-      primitives.contains(baseType.toLowerCase) match {
+      primitives.contains(baseType) match {
         case true => properties += "isPrimitiveType" -> "true"
         case _ => properties += "complexType" -> baseType
       }

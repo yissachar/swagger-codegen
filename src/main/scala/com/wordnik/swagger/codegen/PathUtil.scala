@@ -27,6 +27,4 @@ trait PathUtil {
     val name = apiPath.split("/")(1).split("\\.")(0).replaceAll("/", "")
     name.charAt(0).toUpperCase + name.substring(1) + "Api"
   }
-
-
 }
