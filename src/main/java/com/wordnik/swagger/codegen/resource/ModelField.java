@@ -200,6 +200,7 @@ public class ModelField {
                         fieldDefinition.setCollectionItemName(nameGenerator.applyMethodNamingPolicy(entryType));
                     }
                     entryType =  dataTypeMapper.getClassType(entryType, true);
+                    fieldDefinition.getImportDefinitions().addAll(dataTypeMapper.getClassTypeIncludes(entryType));
                     fieldDefinition.setHasPrimitiveType(dataTypeMapper.isPrimitiveType(entryType));
                     fieldDefinition.setHasListResponse(true);
                     String returnType = dataTypeMapper.getListReturnTypeSignature(entryType);
@@ -220,6 +221,7 @@ public class ModelField {
                     String returnType = dataTypeMapper.getSetReturnTypeSignature(entryType);
                     fieldDefinition.setReturnType(returnType);
                     fieldDefinition.setInitialization(" = " + dataTypeMapper.generateSetInitialization(entryType));
+                    fieldDefinition.getImportDefinitions().addAll(dataTypeMapper.getClassTypeIncludes(entryType));
                     if(this.getWrapperName() != null){
                         fieldDefinition.setName(this.getWrapperName());
                     }else{
@@ -233,6 +235,7 @@ public class ModelField {
                     fieldDefinition.setHasPrimitiveType(dataTypeMapper.isPrimitiveType(entryType));
                     fieldDefinition.setHasArrayResponse(true);
                     String returnType = dataTypeMapper.getArrayReturnTypeSignature(entryType);
+                    fieldDefinition.getImportDefinitions().addAll(dataTypeMapper.getClassTypeIncludes(entryType));
                     fieldDefinition.setReturnType(returnType);
                     fieldDefinition.setInitialization(" = " + dataTypeMapper.generateArrayInitialization(entryType));
                     if(this.getWrapperName() != null){
@@ -252,6 +255,7 @@ public class ModelField {
                     //entryType =  dataTypeMapper.getClassType(entryType, true);
                     entryType =  dataTypeMapper.getClassType(keyClass, true) + "," + dataTypeMapper.getClassType(entryClass, true);
                     String returnType = dataTypeMapper.getMapReturnTypeSignature(entryType);
+                    fieldDefinition.getImportDefinitions().addAll(dataTypeMapper.getClassTypeIncludes(entryClass));
                     fieldDefinition.setReturnType(returnType);
                     fieldDefinition.setInitialization("= " + dataTypeMapper.generateMapInitialization(entryType));
                     if(this.getWrapperName() != null){

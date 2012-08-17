@@ -210,6 +210,13 @@ public interface DataTypeMappingProvider {
     public String getClassType(String type, boolean primitiveObject);
 
     /**
+     * Gets the list of includes that needs ot be added based on class type
+     *
+     * @return
+     */
+    public List<String> getClassTypeIncludes(String type);
+
+    /**
      * If the class contains generics then this will return type of generics object else returns same object
      *
      * Example: If the resource documentation says return type as List[User] the equivalent generic type for java will be

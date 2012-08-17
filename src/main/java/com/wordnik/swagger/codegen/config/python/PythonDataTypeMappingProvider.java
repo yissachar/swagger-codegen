@@ -244,4 +244,8 @@ public class PythonDataTypeMappingProvider implements DataTypeMappingProvider {
   		return "";
   	}
 
+    public List<String> getClassTypeIncludes(String type) {
+        return new ArrayList<String>();
+    }
+
 }

@@ -238,4 +238,8 @@ public class PHPDataTypeMappingProvider implements DataTypeMappingProvider {
   		return "";
   	}
 
+    public List<String> getClassTypeIncludes(String type) {
+        return new ArrayList<String>();
+    }
+
 }

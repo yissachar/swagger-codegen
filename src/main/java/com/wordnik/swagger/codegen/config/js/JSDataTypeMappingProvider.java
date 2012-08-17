@@ -201,4 +201,10 @@ public class JSDataTypeMappingProvider implements DataTypeMappingProvider {
 	public String generateVariableInitialization(String typeClass) {
 		return "";
 	}
+
+    public List<String> getClassTypeIncludes(String type ) {
+        return new ArrayList<String>();
+    }
+
+
 }

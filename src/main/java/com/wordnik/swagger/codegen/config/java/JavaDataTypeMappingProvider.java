@@ -241,4 +241,16 @@ public class JavaDataTypeMappingProvider implements DataTypeMappingProvider {
 	public String generateVariableInitialization(String typeClass) {
 		return "";
 	}
+
+    public List<String> getClassTypeIncludes(String type) {
+        if(type.startsWith("List[")){
+            return getListIncludes();
+        }else if (type.startsWith("Map[")) {
+            return getMapIncludes();
+        }else if (type.startsWith("Set[")) {
+            return getSetIncludes();
+        }
+        return new ArrayList<String>();
+    }
+
 }

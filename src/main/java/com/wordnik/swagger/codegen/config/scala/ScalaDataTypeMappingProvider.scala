@@ -218,4 +218,20 @@ class ScalaDataTypeMappingProvider extends DataTypeMappingProvider {
       case _ => nameGenerator.applyClassNamingPolicy(input)
     }
   }
+
+  def getClassTypeIncludes(input: String): java.util.List[String] = {
+    if (input.equalsIgnoreCase("void") || input.equalsIgnoreCase("ok")) {
+      return new java.util.ArrayList[String]();
+    } else {
+      if (input.startsWith("List[")) {
+        return getListIncludes();
+      } else if (input.startsWith("Map[")) {
+        return getMapIncludes();
+      } else if (input.startsWith("Set[")) {
+        return getSetIncludes();
+      }
+      return new java.util.ArrayList[String]();
+    }
+  }
+
 }
