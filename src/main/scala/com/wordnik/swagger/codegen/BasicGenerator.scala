@@ -73,7 +73,6 @@ abstract class BasicGenerator extends CodegenConfig with PathUtil {
     })
 
     val apiMap = groupApisToFiles(operations.toList)
-    println("template files: " + apiTemplateFiles)
 
     for ((identifier, operationList) <- apiMap) {
       val basePath = identifier._1
