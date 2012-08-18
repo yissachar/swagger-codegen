@@ -45,7 +45,6 @@ class SwaggerSpecValidator(private val doc: Documentation,
 
   def validateResponseModels(subDocs: List[Documentation]) = {
     val validModelNames = CoreUtils.extractAllModels(subDocs).map(m => m._1).toSet
-    println("valid user-generated model names: " + validModelNames)
     val requiredModels = new HashSet[String]
     subDocs.foreach(subDoc => {
       subDoc.getApis.foreach(api => {
@@ -65,9 +64,9 @@ class SwaggerSpecValidator(private val doc: Documentation,
 
     val missingModels = requiredModels.toSet -- (validModelNames ++ primitives)
 
-    println("missing models: " + missingModels)
+    if (missingModels.size > 0) println("missing models: " + missingModels)
   }
-  
+
   def generateReport(host: String, outputFilename: Option[String]) {
     outputFilename match {
       case Some(o) => {
@@ -124,8 +123,8 @@ class SwaggerSpecValidator(private val doc: Documentation,
     if (subDoc.resourcePath.indexOf(".{format}") == -1) {
       doc.getApis.foreach(api => {
         if (api.path.indexOf(".{format}") > 0 && api.path.replaceAll(".\\{format\\}", "") == subDoc.resourcePath) {
-          println("--> added subdoc format string to " + subDoc.resourcePath)
-          !!(subDoc, RESOURCE, "Path " + subDoc.resourcePath, format("Must be %s.{format}", subDoc.resourcePath), WARNING)
+//          println("--> added subdoc format string to " + subDoc.resourcePath)
+//          !!(subDoc, RESOURCE, "Path " + subDoc.resourcePath, format("Must be %s.{format}", subDoc.resourcePath), WARNING)
           if (fix) subDoc.resourcePath = subDoc.resourcePath + ".{format}"
         }
       })
