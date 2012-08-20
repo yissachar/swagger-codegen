@@ -28,7 +28,7 @@ class BasicScalaGenerator extends BasicGenerator {
 
   // template used for models
   apiTemplateFiles += "api.mustache" -> ".scala"
-println("apiTemplateFiles: " + apiTemplateFiles)
+
   // location of templates
   override def templateDir = "scala"
 
