@@ -122,6 +122,7 @@ class Codegen(config: CodegenConfig) {
 
     var data = Map[String, AnyRef](
       "package" -> bundle("package"),
+      "invokerPackage" -> bundle("invokerPackage"),
       "imports" -> imports,
       "operations" -> f,
       "models" -> modelData,
