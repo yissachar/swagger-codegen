@@ -64,6 +64,10 @@ public class LibraryCodeGenerator {
     public LibraryCodeGenerator(String configPath){
     	initializeWithConfigPath(configPath);
     }
+
+    public void setAPIObjectTemplateName(String temlpateName) {
+        API_OBJECT_TEMPLATE = temlpateName;
+    }
     
     protected void initializeWithConfigPath(String configPath){
         final ObjectMapper mapper = new ObjectMapper();

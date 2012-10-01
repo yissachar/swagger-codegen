@@ -44,6 +44,24 @@ object ScalaLibCodeGen {
         val classOutputDir = libraryHome + "/src/main/scala/" + packageName.replace(".", "/")
         new ScalaLibCodeGen(apiServerURL, apiKey, modelPackageName, apiPackageName, classOutputDir, libraryHome)
       }
+      case 5 => {
+        var apiServerURL = args(0)
+        if (!apiServerURL.endsWith("/")) {
+          apiServerURL = apiServerURL + "/"
+        }
+        val apiKey = args(1);
+        val packageName = args(2)
+        var libraryHome = args(3)
+        if (libraryHome.endsWith("/")) {
+          libraryHome = libraryHome.substring(0, libraryHome.length() - 1)
+        }
+        var apiTemplateVersion = args(4)
+        val modelPackageName = packageName + ".model"
+        val apiPackageName = packageName + ".api"
+        val classOutputDir = libraryHome + "/src/main/scala/" + packageName.replace(".", "/")
+        new ScalaLibCodeGen(apiServerURL, apiKey, modelPackageName, apiPackageName, classOutputDir, libraryHome, apiTemplateVersion)
+      }
+
       case _ => throw new CodeGenerationException("Invalid number of arguments passed: No command line argument was passed to the program for config json")
     }
     codeGenerator.generateCode()
@@ -57,9 +75,13 @@ class ScalaLibCodeGen(
   apiPackageName: String,
   classOutputDir: String,
   libraryHome: String,
+  apiTemplateVersion:String,
   configPath: String) extends LibraryCodeGenerator {
 
+  if (apiTemplateVersion == "v2") this.setAPIObjectTemplateName("ResourceObjectV2")
+
   this.reservedWordMapper = new ScalaReservedWordMapper
+
   if (null != configPath) {
     initializeWithConfigPath(configPath)
     this.setDataTypeMappingProvider(new ScalaDataTypeMappingProvider())
@@ -69,9 +91,9 @@ class ScalaLibCodeGen(
     setDataTypeMappingProvider(new ScalaDataTypeMappingProvider())
     setNameGenerator(new ScalaNamingPolicyProvider())
   }
-
-  def this(apiServerURL: String, apiKey: String, modelPackageName: String, apiPackageName: String, classOutputDir: String, libraryHome: String) = this(apiServerURL, apiKey, modelPackageName, apiPackageName, classOutputDir, libraryHome, null)
-  def this(configPath: String) = this(null, null, null, null, null, null, configPath)
+  def this(apiServerURL: String, apiKey: String, modelPackageName: String, apiPackageName: String, classOutputDir: String, libraryHome: String, apiTemplateVersion:String) = this(apiServerURL, apiKey, modelPackageName, apiPackageName, classOutputDir, libraryHome, apiTemplateVersion, null)
+  def this(apiServerURL: String, apiKey: String, modelPackageName: String, apiPackageName: String, classOutputDir: String, libraryHome: String) = this(apiServerURL, apiKey, modelPackageName, apiPackageName, classOutputDir, libraryHome, null, null)
+  def this(configPath: String) = this(null, null, null, null, null, null, null, configPath)
 
   override def initializeLangConfig(config: LanguageConfiguration): LanguageConfiguration = {
     config.setClassFileExtension(".scala");
