@@ -41,7 +41,7 @@ import $import$
  */
 object $resource$ {
 
-    var apiInvoker:DynamicAPIInvoker = null;
+    var apiInvoker:APIInvokerWithServiceLocator = null;
 
 $methods:{ method |
     /**
@@ -164,14 +164,14 @@ $endif$
      }
 }$
 
-    def  getApiInvoker():DynamicAPIInvoker = {
+    def  getApiInvoker():APIInvokerWithServiceLocator = {
         if(null == apiInvoker){
-            apiInvoker = DynamicAPIInvoker.getApiInvoker();
+            apiInvoker = APIInvokerWithServiceLocator.getApiInvoker();
         }
         return apiInvoker;
     }
 
-    def setApiInvoker(invoker:DynamicAPIInvoker) = {
+    def setApiInvoker(invoker:APIInvokerWithServiceLocator) = {
         apiInvoker = invoker;
     }
 }

@@ -26,15 +26,11 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.logging.Logger;
 
-import javax.ws.rs.core.MultivaluedMap;
-
 import com.wordnik.swagger.runtime.exception.APIException;
 import com.wordnik.swagger.runtime.exception.APIExceptionCodes;
 import org.codehaus.jackson.map.DeserializationConfig;
 import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.map.DeserializationConfig.Feature;
 import org.codehaus.jackson.map.SerializationConfig;
-import org.codehaus.jackson.type.TypeReference;
 
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
@@ -52,21 +48,24 @@ import com.sun.jersey.api.client.filter.LoggingFilter;
  * @author ramesh
  *
  */
-public class DynamicAPIInvoker {
+public class APIInvokerWithServiceLocator {
 
-	private List<String> apiServers = new ArrayList<String>();
+	private ServiceLocator serviceLocator = null;
 	private SecurityHandler securityHandler = null;
+    private String serviceType = null;
+    private String basePath = "";
+    private int port = 0;
+
 	private static boolean loggingEnabled;
 	private static Logger logger = null;
-	private static DynamicAPIInvoker apiInvoker = null;
+	private static APIInvokerWithServiceLocator apiInvoker = null;
     private static Client apiClient = null;
-    private int next = 0;
-
 	protected static String POST = "POST";
 	protected static String GET = "GET";
 	protected static String PUT = "PUT";
 	protected static String DELETE = "DELETE";
 	public static ObjectMapper mapper = new ObjectMapper();
+
 	static{
         mapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.configure(SerializationConfig.Feature.WRITE_NULL_PROPERTIES, false);
@@ -75,25 +74,9 @@ public class DynamicAPIInvoker {
         apiClient = Client.create();
 	}
 
-	/**
-	 * Initializes the API communication with required inputs. 
-	 * @param securityHandler security handler responsible for populating necessary security invocation while making API server calls
-	 * @param apiServer Sets the URL for the API server. It is defaulted to the server 
-	 * 					used while building the driver. This value should be provided while testing the APIs against 
-	 * 					test servers or if there is any changes in production server URLs.
-	 * @param enableLogging This will enable the logging using Jersey logging filter. Refer the following documentation 
-	 * 						for more details. {@link com.sun.jersey.api.client.filter.LoggingFilter}. Default output is sent to system.out.
-	 * 						Create a logger ({@link java.util.logging.Logger} class and set using setLogger method.
-	 */
-	public static DynamicAPIInvoker initialize(SecurityHandler securityHandler, List<String> apiServers, boolean enableLogging) {
-        DynamicAPIInvoker invoker = new DynamicAPIInvoker();
+	public static APIInvokerWithServiceLocator initialize(SecurityHandler securityHandler, String serviceType, ServiceLocator serviceLocator, int port, String basePath, boolean enableLogging) {
+        APIInvokerWithServiceLocator invoker = new APIInvokerWithServiceLocator(securityHandler, serviceType, serviceLocator, port, basePath, enableLogging);
 		invoker.setSecurityHandler(securityHandler);
-		if(apiServers != null && apiServers.size() > 0) {
-//			if(apiServer.substring(apiServer.length()-1).equals("/")){
-//				apiServer = apiServer.substring(0, apiServer.length()-1);
-//			}
-			invoker.setApiServers(apiServers);
-		}
 		invoker.setLoggingEnable(enableLogging);
         //initialize the logger if needed
         if(loggingEnabled && apiInvoker == null) {
@@ -107,15 +90,11 @@ public class DynamicAPIInvoker {
         return invoker;
 	}
 
-    public static void updatePosisbleServers(List<String> apiServers) {
-       apiInvoker.setApiServers(apiServers);
-    }
-
     /**
      * Returns lst initialized API invoker
      * @return
      */
-    public static DynamicAPIInvoker getApiInvoker(){
+    public static APIInvokerWithServiceLocator getApiInvoker(){
         return apiInvoker;
     }
 
@@ -140,22 +119,16 @@ public class DynamicAPIInvoker {
 		securityHandler = aSecurityHandler;
 	}
 
-	/**
-	 * Sets the URL for the API server. It is defaulted to the server used while building the driver.
-	 * @return 
-	 */
-	private List<String> getApiServers() {
-		return apiServers;
-	}
+    public  APIInvokerWithServiceLocator(SecurityHandler securityHandler, String serviceType, ServiceLocator serviceLocator, int port, String basePath, boolean enableLogging) {
+        this.securityHandler = securityHandler;
+        this.serviceType = serviceType;
+        this.serviceLocator = serviceLocator;
+        this.port = port;
+        this.basePath = basePath;
+    }
 
-	public void setApiServers(List<String> servers) {
-		apiServers = servers;
-	}
-	
-	public int getServerPosition() {
-        int position = next;
-        if(next+1 >= getApiServers().size()) next = 0; else next = next +1;
-        return position;
+	private String getServerUrl() {
+        return "http://"+serviceLocator.getServerInstance(this.serviceType)+":"+this.port+this.basePath;
     }
 	
 	/**
@@ -173,15 +146,8 @@ public class DynamicAPIInvoker {
 	public String invokeAPI(String resourceURL, String method, Map<String,
             String> queryParams, Object postData, Map<String, String> headerParams) throws APIException {
 
-
-        //check for app server values
-        if(getApiServers() == null || getApiServers().size() == 0) {
-        	String[] args = {getApiServers().toString()};
-        	throw new APIException(APIExceptionCodes.API_SERVER_NOT_VALID, args);
-        }
-
         //make the communication
-		resourceURL = getApiServers().get(getServerPosition()) + resourceURL;
+		resourceURL = getServerUrl() + resourceURL;
 		if(queryParams.keySet().size() > 0){
 			int i=0;
 			for(String paramName : queryParams.keySet()){
