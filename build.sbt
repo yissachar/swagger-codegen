@@ -5,9 +5,9 @@ organization := "com.wordnik"
 
 name := "swagger-codegen"
 
-version := "2.0.2-SNAPSHOT"
+version := "3.0.0-SNAPSHOT"
 
-scalaVersion := "2.9.2"
+scalaVersion := "2.10.0"
 
 javacOptions ++= Seq("-Xlint:unchecked", "-Xlint:deprecation")
 
@@ -16,6 +16,7 @@ scalacOptions ++= Seq("-optimize", "-unchecked", "-deprecation", "-Xcheckinit", 
 crossScalaVersions := Seq("2.9.0", "2.9.0-1", "2.9.1", "2.9.1-1", "2.9.2", "2.10.0")
 
 libraryDependencies ++= Seq(
+  "io.backchat.inflector" %% "scala-inflector" % "1.3.5",
   "org.json4s" %% "json4s-jackson" % "3.1.0",
   "commons-io" % "commons-io" % "2.3",
   "junit" % "junit" % "4.11" % "test",
@@ -103,4 +104,4 @@ pomExtra <<= (pomExtra, name, description) {(pom, name, desc) => pom ++ Group(
   </developers>
 )}
 
-seq(assemblySettings:_*)
+assemblySettings

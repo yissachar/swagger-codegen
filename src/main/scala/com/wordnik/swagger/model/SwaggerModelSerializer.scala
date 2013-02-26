@@ -8,6 +8,7 @@ import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.{read, write}
 
 import scala.collection.mutable.{ListBuffer, LinkedHashMap}
+import collection.mutable
 
 object SwaggerSerializers {
   import ValidationMessage._
@@ -30,6 +31,14 @@ object SwaggerSerializers {
   def !!(element: AnyRef, elementType: String, elementId: String, message: String, level: String = ERROR) {
     val msg = new ValidationMessage(element, elementType, elementId, message, level)
     validationMessages += msg
+  }
+
+  private[this] def nel[T](data: List[T])(implicit mf: Manifest[T], formats: Formats) = {
+    if (data.nonEmpty) Extraction.decompose(data) else JNothing
+  }
+
+  private[this] def nem[T](data: Map[String, T])(implicit mf: Manifest[T], formats: Formats) = {
+    if (data.nonEmpty) Extraction.decompose(data) else JNothing
   }
 
   class ApiListingSerializer extends CustomSerializer[ApiListing](formats => ({
@@ -61,18 +70,8 @@ object SwaggerSerializers {
       ("apiVersion" -> x.apiVersion) ~
       ("swaggerVersion" -> x.swaggerVersion) ~
       ("basePath" -> x.basePath) ~
-      ("apis" -> {
-        x.apis match {
-          case e: List[ApiDescription] if (e.size > 0) => Extraction.decompose(e)
-          case _ => JNothing
-        }
-      }) ~
-      ("models" -> {
-        x.models match {
-          case e: Map[String, Model] if (e.size > 0) => Extraction.decompose(e)
-          case _ => JNothing
-        }
-      })
+      ("apis" -> nel(x.apis)) ~
+      ("models" -> nem(x.models))
     }
   ))
 
@@ -92,7 +91,7 @@ object SwaggerSerializers {
           !!(json, RESOURCE_LISTING, "basePath", "missing required field", ERROR)
           ""
         }),
-        (json \ "apis").extract[List[ApiListingReference]]
+        (json \ "apis").extractOrElse[List[ApiListingReference]](Nil)
       )
     }, {
       case x: ResourceListing =>
@@ -100,12 +99,7 @@ object SwaggerSerializers {
       ("apiVersion" -> x.apiVersion) ~
       ("swaggerVersion" -> x.swaggerVersion) ~
       ("basePath" -> x.basePath) ~
-      ("apis" -> {
-        x.apis match {
-          case e: List[ApiListingReference] if (e.size > 0) => Extraction.decompose(e)
-          case _ => JNothing
-        }
-      })
+      ("apis" -> nel(x.apis))
     }
   ))
 
@@ -143,12 +137,7 @@ object SwaggerSerializers {
       implicit val fmts = formats
       ("path" -> x.path) ~
       ("description" -> x.description) ~
-      ("operations" -> {
-        x.operations match {
-          case e:List[Operation] if(e.size > 0) => Extraction.decompose(e)
-          case _ => JNothing
-        }
-      })
+      ("operations" -> nel(x.operations))
     }
   ))
 
@@ -204,12 +193,7 @@ object SwaggerSerializers {
       ("responseClass" -> x.responseClass) ~
       ("nickname" -> x.nickname) ~
       ("parameters" -> Extraction.decompose(x.parameters)) ~
-      ("errorResponses" -> {
-        x.errorResponses match {
-          case e: List[ErrorResponse] if(e.size > 0) => Extraction.decompose(e)
-          case _ => JNothing
-        }
-      }) ~
+      ("errorResponses" -> nel(x.errorResponses)) ~
       ("deprecated" -> x.`deprecated`)
     }
   ))
@@ -272,15 +256,8 @@ object SwaggerSerializers {
   class ModelSerializer extends CustomSerializer[Model](formats => ({
     case json =>
       implicit val fmts: Formats = formats
-      val output = new LinkedHashMap[String, ModelProperty]
-      val properties = (json \ "properties") match {
-        case JObject(entries) => {
-          entries.map({
-            case (key, value) => output += key -> value.extract[ModelProperty]
-          })
-        }
-        case _ =>
-      }
+      val output = new mutable.LinkedHashMap[String, ModelProperty]
+      output ++=  (json \ "properties").extractOpt[Map[String, ModelProperty]].getOrElse(Map.empty)
 
       Model(
         (json \ "id").extractOrElse({
@@ -296,12 +273,7 @@ object SwaggerSerializers {
       implicit val fmts = formats
       ("id" -> x.id) ~
       ("name" -> x.name) ~
-      ("properties" -> {
-        x.properties match {
-          case e: LinkedHashMap[String, ModelProperty] => Extraction.decompose(e.toMap)
-          case _ => JNothing
-        }
-      })
+      ("properties" -> nem(x.properties.toMap))
     }
   ))
 
@@ -366,18 +338,18 @@ object SwaggerSerializers {
       implicit val fmts: Formats = formats
       json \ "valueType" match {
         case JString(x) if x.equalsIgnoreCase("list") => {
-          val output = new ListBuffer[String]
+
           val properties = (json \ "values") match {
-            case JArray(entries) => entries.map {
-              case e:JInt => output += e.num.toString
-              case e:JBool => output += e.value.toString
-              case e:JString => output += e.s
-              case e:JDouble => output += e.num.toString
-              case _ =>
+            case JArray(entries) => entries map {
+              case e:JInt => Some(e.num.toString)
+              case e:JBool => Some(e.value.toString)
+              case e:JString => Some(e.s)
+              case e:JDouble => Some(e.num.toString)
+              case _ => None
             }
-            case _ =>
+            case _ => Nil
           }
-          AllowableListValues(output.toList)
+          AllowableListValues(properties.flatten)
         }
         case JString(x) if x.equalsIgnoreCase("range") =>
           AllowableRangeValues((json \ "min").extract[String], (json \ "max").extract[String])

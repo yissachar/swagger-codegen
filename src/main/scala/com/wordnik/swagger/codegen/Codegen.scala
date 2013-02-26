@@ -36,6 +36,7 @@ import org.apache.commons.io.FileUtils
 import scala.io.Source
 import scala.collection.mutable.{ HashMap, ListBuffer, HashSet }
 import scala.collection.JavaConversions._
+import collection.mutable
 
 object Codegen {
   val templates = new HashMap[String, (TemplateEngine, Template)]
@@ -88,8 +89,8 @@ class Codegen(config: CodegenConfig) {
       case None =>
     }
 
-    val f = new ListBuffer[AnyRef]
-    classNameToOperationList.map(m => f += Map("classname" -> m._1, "operation" -> m._2))
+//    val f = new ListBuffer[Map[String, String]]
+    val f = classNameToOperationList.map(m => Map("classname" -> m._1, "operation" -> m._2)).toList
 
     val imports = new ListBuffer[Map[String, String]]
     val importScope = config.modelPackage match {
@@ -99,18 +100,10 @@ class Codegen(config: CodegenConfig) {
     // do the mapping before removing primitives!
     allImports.foreach(i => {
       val model = config.toModelName(i)
-      includedModels.contains(model) match {
-        case false => {
-          config.importMapping.containsKey(model) match {
-            case true => {
-              if(!imports.flatten.map(m => m._2).toSet.contains(config.importMapping(model))) {
-                imports += Map("import" -> config.importMapping(model))
-              }
-            }
-            case false =>
-          }
-        }
-        case true =>
+      val mapping = config.importMapping(model)
+      val imps = imports.flatten.map(_._2).toSet
+      if (!includedModels.contains(model) && config.importMapping.containsKey(model) && !imps.contains(mapping)) {
+        imports += Map("import" -> mapping)
       }
     })
     allImports --= config.defaultIncludes
@@ -134,7 +127,7 @@ class Codegen(config: CodegenConfig) {
     })
 
     val rootDir = new java.io.File(".")
-    val engineData = Codegen.templates.getOrElse(templateFile, {
+    val (engine, template) = Codegen.templates.getOrElse(templateFile, {
       val engine = new TemplateEngine(Some(rootDir))
       val srcName = config.templateDir + File.separator + templateFile
       val srcStream = {
@@ -155,21 +148,17 @@ class Codegen(config: CodegenConfig) {
       t
     })
 
-    val engine = engineData._1
-    val template = engineData._2
-
     val requiredModels = {
       for(i <- allImports) yield {
         HashMap("name" -> i, "hasMore" -> "true")
       }
     }.toList
 
-    requiredModels.size match {
-      case i if (i > 0) => requiredModels.last += "hasMore" -> "false"
-      case _ =>
+    if (requiredModels.nonEmpty) {
+      requiredModels.last += "hasMore" -> "false"
     }
 
-    var data = Map[String, AnyRef](
+    val data = Map[String, AnyRef](
       "name" -> bundle("name"),
       "package" -> bundle("package"),
       "baseName" -> bundle.getOrElse("baseName", None),
@@ -180,10 +169,10 @@ class Codegen(config: CodegenConfig) {
       "operations" -> f,
       "models" -> modelData,
       "basePath" -> bundle.getOrElse("basePath", ""))
-    var output = engine.layout(config.templateDir + File.separator + templateFile, template, data.toMap)
+    val output = engine.layout(config.templateDir + File.separator + templateFile, template, data)
 
     //  a shutdown method will be added to scalate in an upcoming release
-    engine.compiler.shutdown
+    engine.compiler.shutdown()
     output
   }
 
@@ -286,7 +275,7 @@ class Codegen(config: CodegenConfig) {
     }
 
     val sp = {
-      val lb = new ListBuffer[AnyRef]
+      val lb = new ListBuffer[mutable.HashMap[String, AnyRef]]
       paramList.foreach(i => {
         i += "secondaryParam" -> "true"
         i("defaultValue") match {

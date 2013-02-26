@@ -22,7 +22,7 @@ case class ResourceListing(
   apiVersion: String, 
   swaggerVersion: String, 
   basePath: String,
-  apis: List[ApiListingReference] = List())
+  apis: List[ApiListingReference] = Nil)
 
 case class ApiListingReference(path:String, description: String)
 
