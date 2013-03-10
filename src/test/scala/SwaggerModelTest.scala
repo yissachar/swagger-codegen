@@ -17,7 +17,6 @@
 import com.wordnik.swagger.model._
 
 import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization.read
 
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
@@ -120,12 +119,6 @@ class SwaggerModelTest extends FlatSpec with ShouldMatchers {
     val pet = models("Pet")
 
     val petProperties = pet.properties.toList
-
-    println("*" * 100)
-    println("pet properties")
-    println(petProperties.map(_._1))
-    println("*" * 100)
-
     petProperties.size should be (6)
     petProperties(0)._1 should be ("tags")
     petProperties(1)._1 should be ("id")
