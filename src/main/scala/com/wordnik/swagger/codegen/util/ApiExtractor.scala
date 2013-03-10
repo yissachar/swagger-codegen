@@ -20,12 +20,7 @@ import com.wordnik.swagger.model._
 
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.read
-
-import java.net.URL
-import java.io.InputStream
-
 import scala.io._
-import scala.collection.mutable.{ ListBuffer, HashMap, HashSet }
 import util.control.Exception.allCatch
 
 object ApiExtractor extends RemoteUrl {

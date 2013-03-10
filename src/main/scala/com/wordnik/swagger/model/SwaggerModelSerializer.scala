@@ -248,16 +248,24 @@ object SwaggerSerializers {
           case e:AllowableValues => Extraction.decompose(x.allowableValues)
           case _ => JNothing
         }
-      }) ~
-      ("paramType" -> x.paramType)
+      }) ~ ("paramType" -> x.paramType)
     }
   ))
 
   class ModelSerializer extends CustomSerializer[Model](formats => ({
     case json =>
       implicit val fmts: Formats = formats
+
+      // Needs to use a linkedhashmap so that the order of insertion is retained
       val output = new mutable.LinkedHashMap[String, ModelProperty]
-      output ++=  (json \ "properties").extractOpt[Map[String, ModelProperty]].getOrElse(Map.empty)
+      (json \ "properties") match {
+        case JObject(entries) => {
+          entries map {
+            case (key, value) => output += key -> value.extract[ModelProperty]
+          }
+        }
+        case _ =>
+      }
 
       Model(
         (json \ "id").extractOrElse({

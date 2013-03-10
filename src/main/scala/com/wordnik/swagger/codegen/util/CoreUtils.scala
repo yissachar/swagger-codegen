@@ -23,26 +23,18 @@ import scala.collection.JavaConversions._
 import com.wordnik.swagger.codegen.spec.SwaggerSpec._
 
 import scala.io.Source
+import collection.mutable
 
 object CoreUtils {
   def extractAllModels(apis: List[ApiListing]): Map[String, Model] = {
-    val modelObjects = new HashMap[String, Model]
-    apis.foreach(api => {
-      for ((nm, model) <- extractApiModels(api)) modelObjects += nm -> model
-      api.models.foreach(model => modelObjects += model._1 -> model._2)
-    })
-    modelObjects.toMap
+    def extractFromApi(api: ApiListing): Map[String, Model] = extractApiModels(api) ++ api.models
+    apis map extractFromApi reduce (_ ++ _)
   }
 
   def extractModelNames(op: Operation): Set[String] = {
-    val modelNames = new HashSet[String]
-    modelNames += op.responseClass
     // POST, PUT, DELETE body
-    op.parameters.filter(p => p.paramType == "body")
-      .foreach(p => modelNames += p.dataType)
-    val baseNames = (for (modelName <- (modelNames.toList))
-      yield (extractBasePartFromType(modelName))).toSet
-    baseNames.toSet
+    val dataTypes = op.parameters.filter(p => p.paramType == "body").map(_.dataType)
+    (op.responseClass :: dataTypes).toSet map extractBasePartFromType
   }
 
   def extractBasePartFromType(datatype: String): String = {
@@ -54,70 +46,37 @@ object CoreUtils {
   }
 
   def extractApiModels(sd: ApiListing): Map[String, Model] = {
-    val modelNames = new HashSet[String]
-    val modelObjects = new HashMap[String, Model]
-    // return types
-    sd.apis.foreach(api => 
-      api.operations.foreach(op => {
-        modelNames += op.responseClass
-        // POST, PUT, DELETE body
-        op.parameters.filter(p => p.paramType == "body")
-          .foreach(p => modelNames += p.dataType)
-      })
-    )
-    for ((name, m) <- sd.models) 
-      modelObjects += name -> m
+    val collectedNames =
+      (for {
+        api <- sd.apis
+        op <- api.operations
+        mod <- op.responseClass :: op.parameters.filter(_.paramType == "body").map(_.dataType)
+      } yield mod).toSet
 
     // extract all base model names, strip away Containers like List[] and primitives
-    val baseNames = (for (modelName <- (modelNames.toList filterNot primitives.contains))
-      yield (extractBasePartFromType(modelName))).toSet
+    val baseNames = collectedNames filterNot primitives.contains map extractBasePartFromType
 
     // get complex models from base
-    val requiredModels = modelObjects.filter(obj => baseNames.contains(obj._1))
+    val requiredModels = sd.models filterKeys baseNames.contains
 
-    val subNames = new HashSet[String]
-    // look inside top-level models
-    recurseModels(requiredModels.toMap, modelObjects.toMap, subNames)
+    val subNames =
+      requiredModels.foldLeft(Set.empty[String]){ case (acc, (_, model)) => collectSubModels(model, sd.models, acc)}
 
-    val subModels = modelObjects.filter(obj => subNames.contains(obj._1))
+    val subModels = sd.models filterKeys subNames.contains
     val allModels = requiredModels ++ subModels
-    allModels.filter(m => primitives.contains(m._1) == false).toMap
+    allModels.filterKeys(!primitives.contains(_))
   }
 
-  def recurseModels(requiredModels: Map[String, Model], allModels: Map[String, Model], subNames: HashSet[String]) = {
-    requiredModels.map(m => recurseModel(m._2, allModels, subNames))
+  def collectSubModels(model: Model, allModels: Map[String, Model], collected: Set[String]): Set[String] = {
+    model.properties.foldLeft(collected){ case (acc, (_, subObj)) =>
+      val propName = if (containers.contains(subObj.`type`)) {
+        subObj.items map { st => st.ref getOrElse st.`type` }
+      } else Some(subObj.`type`)
+
+      propName.filterNot(collected.contains).filter(allModels.contains) map { prop =>
+        collectSubModels(allModels(prop), allModels, acc ++ Set(prop))
+      } getOrElse acc
+    }
   }
 
-  def recurseModel(model: Model, allModels: Map[String, Model], subNames: HashSet[String]): Unit = {
-    model.properties.foreach(prop => {
-      val subObject = prop._2
-      val propertyName = containers.contains(subObject.`type`) match {
-        case true => subObject.items match {
-          case Some(subItem) => {
-            Option(subItem.ref.getOrElse(subItem.`type`)) match {
-              case Some(sn) => Some(sn)
-              case _ => None
-            }
-          }
-          case _ => None
-        }
-        case false => Some(subObject.`type`)
-      }
-      propertyName match {
-        case Some(property) => subNames.contains(property) match {
-          case false => {
-            allModels.containsKey(property) match {
-              case true => {
-                recurseModel(allModels(property), allModels, subNames)
-              }
-              case false =>
-            }
-            subNames += property
-          }
-          case true =>
-        }
-        case None =>
-      }
-    })
-  }
 }
