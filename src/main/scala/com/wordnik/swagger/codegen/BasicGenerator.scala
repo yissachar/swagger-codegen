@@ -41,7 +41,7 @@ abstract class BasicGenerator extends CodegenConfig with PathUtil {
   override def modelPackage: Option[String] = Some("com.wordnik.client.model")
   override def apiPackage: Option[String] = Some("com.wordnik.client.api")
 
-  var codegen = new Codegen(this)
+  val codegen = new Codegen(this)
 
   def generateClient(args: Array[String]) = {
     if (args.length == 0) {
@@ -67,18 +67,15 @@ abstract class BasicGenerator extends CodegenConfig with PathUtil {
       throw new Exception("No APIs specified by resource")
     val apis = ApiExtractor.fetchApiListings(basePath, apiReferences, apiKey)
 
-    SwaggerSerializers.validationMessages.filter(_.level == ValidationMessage.ERROR).size match {
-      case i: Int if i > 0 => {
-        println("********* Failed to read swagger json!")
-        SwaggerSerializers.validationMessages.foreach(msg => {
-          println(msg)
-        })
-        Option(System.getProperty("skipErrors")) match {
-          case Some(str) => println("**** ignoring errors and continuing")
-          case None => sys.exit(0)
-        }
+    if (SwaggerSerializers.validationMessages.exists(_.level == ValidationMessage.ERROR)) {
+      println("********* Failed to read swagger json!")
+      SwaggerSerializers.validationMessages.foreach(msg => {
+        println(msg)
+      })
+      Option(System.getProperty("skipErrors")) match {
+        case Some(str) => println("**** ignoring errors and continuing")
+        case None => sys.exit(0)
       }
-      case 0 =>
     }
 
     new SwaggerSpecValidator(doc, apis).validate()
@@ -185,13 +182,11 @@ abstract class BasicGenerator extends CodegenConfig with PathUtil {
   }
 
   def bundleToSource(bundle:List[Map[String, AnyRef]], templates: Map[String, String]): List[(String, String)] = {
-    val output = new ListBuffer[(String, String)]
-    bundle.foreach(m => {
-      for ((file, suffix) <- templates) {
-        output += Tuple2(m("outputDirectory").toString + File.separator + m("filename").toString + suffix, codegen.generateSource(m, file))
-      }
-    })
-    output.toList
+    for {
+      m <- bundle
+      (file, suffix) <- templates
+    } yield (m("outputDirectory").toString + File.separator + m("filename").toString + suffix) -> codegen.generateSource(m, file)
+
   }
 
   def generateAndWrite(bundle: Map[String, AnyRef], templateFile: String) = {

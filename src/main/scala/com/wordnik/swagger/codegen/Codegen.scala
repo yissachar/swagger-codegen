@@ -91,12 +91,8 @@ class Codegen(config: CodegenConfig) {
 
 //    val f = new ListBuffer[Map[String, String]]
     val f = classNameToOperationList.map(m => Map("classname" -> m._1, "operation" -> m._2)).toList
-
     val imports = new ListBuffer[Map[String, String]]
-    val importScope = config.modelPackage match {
-      case Some(s) => s + "."
-      case None => ""
-    }
+    val importScope = config.modelPackage map (_ + ".") getOrElse ""
     // do the mapping before removing primitives!
     allImports.foreach(i => {
       val model = config.toModelName(i)
@@ -111,19 +107,8 @@ class Codegen(config: CodegenConfig) {
     allImports --= containers
     allImports.foreach(i => {
       val model = config.toModelName(i)
-      includedModels.contains(model) match {
-        case false => {
-          config.importMapping.containsKey(model) match {
-            case true =>
-            case false => {
-              if(!imports.flatten.map(m => m._2).toSet.contains(importScope + model)){
-                imports += Map("import" -> (importScope + model))
-              }
-            }
-          }
-        }
-        case true => // no need to add the model
-      }
+      if (!includedModels.contains(model) && !config.importMapping.contains(model) && !imports.flatten.map(m => m._2).toSet.contains(importScope + model))
+        imports += Map("import" -> (importScope + model))
     })
 
     val rootDir = new java.io.File(".")
@@ -148,11 +133,10 @@ class Codegen(config: CodegenConfig) {
       t
     })
 
-    val requiredModels = {
-      for(i <- allImports) yield {
-        HashMap("name" -> i, "hasMore" -> "true")
+    val requiredModels =
+      for(i <- allImports.toList) yield {
+        mutable.HashMap("name" -> i, "hasMore" -> "true")
       }
-    }.toList
 
     if (requiredModels.nonEmpty) {
       requiredModels.last += "hasMore" -> "false"
@@ -522,9 +506,8 @@ class Codegen(config: CodegenConfig) {
         } else {
           val is = getInputStream(config.templateDir + File.separator + supportingFile)
           val outputFile = new File(outputFilename)
-          val parentDir = new File(outputFile.getParent)
-          if (parentDir != null && !parentDir.exists) {
-            println("making directory: " + parentDir.toString + ": " + parentDir.mkdirs)
+          Option(outputFile.getParentFile) foreach { parent =>
+            println("created directory "+parent.toString+": "+parent.mkdirs)
           }
           FileUtils.copyInputStreamToFile(is, new File(outputFilename))
           println("copied " + outputFilename)

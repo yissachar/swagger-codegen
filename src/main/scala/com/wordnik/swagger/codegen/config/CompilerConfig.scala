@@ -11,7 +11,7 @@ case class CompilerConfig(
     modelTemplateFiles: Map[String, String] = Map.empty,
     apisToProcess: Set[String] = Set.empty,
     modelsToProcess: Set[String] = Set.empty,
-    newLine: String = System.lineSeparator(),
+    newLine: String = sys.props("line.separator"),
     formatter: format.Formatter)
 
 case class GeneratorConfig(compilerConfig: CompilerConfig, basePath: String)

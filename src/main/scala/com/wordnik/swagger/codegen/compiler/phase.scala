@@ -11,6 +11,8 @@ import format._
 import collection.mutable
 import spec.SwaggerSpec._
 import mojolly.inflector.InflectorImports._
+import org.fusesource.scalate.{Template, TemplateEngine}
+import spec.SwaggerSpec
 
 sealed trait Phase[T, S] extends Function[T, S] {
   def apply(context: T): S
@@ -45,20 +47,24 @@ case class GeneratorContext(
   operationMap: Map[(String, String), List[(String, Operation)]],
   modelBundle: List[ModelBundleItem],
   apiBundle: List[ApiBundleItem],
-  config: GeneratorConfig)
+  config: GeneratorConfig) {
+  def compilerConfig = config.compilerConfig
+  def format = compilerConfig.formatter
+  def languageConfig = format.languageConfig
+}
 
 class PrepareApi extends Phase[(GeneratorConfig, List[ApiListing]), GeneratorContext] {
   def apply(context: (GeneratorConfig, List[ApiListing])): GeneratorContext = {
     val (config, apiListing) = context
     val format = config.compilerConfig.formatter
-    val (operations, allModels) = apiOperationsAndModels(apiListing)
+    val (operations, allModels) = apiOperationsAndModels(apiListing, format)
     val operationMap = groupOperationsToFiles(operations, format)
     val modelBundle = prepareModelBundle(allModels, config, format).toList
     val apiBundle = prepareApiBundle(operationMap, config, format).toList
     GeneratorContext(allModels, operationMap, modelBundle, apiBundle, config)
   }
 
-  private[this] def apiOperationsAndModels(apiListing: List[ApiListing]): (List[(String, String, Operation)], Map[String, Model]) =
+  private[this] def apiOperationsAndModels(apiListing: List[ApiListing], format: Formatter): (List[(String, String, Operation)], Map[String, Model]) =
     apiListing.foldLeft((List.empty[(String, String, Operation)], Map.empty[String, Model])) {
       case ((operations, models), listing) =>
         val basePath = listing.basePath
@@ -66,8 +72,8 @@ class PrepareApi extends Phase[(GeneratorConfig, List[ApiListing]), GeneratorCon
         val extracted =
           for {
             api <- apis
-            (apiPath, operation) <- ApiExtractor.extractApiOperations(basePath, api)
-            // TODO: Add api operation processing here? Seems like a strange place for it.
+            (apiPath, op) <- ApiExtractor.extractApiOperations(basePath, api)
+            operation = format.processApiOperation(apiPath, op)
           } yield (basePath, apiPath, operation)
 
         (extracted ::: operations, models ++ CoreUtils.extractApiModels(listing))
@@ -112,11 +118,118 @@ class PrepareApi extends Phase[(GeneratorConfig, List[ApiListing]), GeneratorCon
   }
 }
 
-object GenerateFiles {
+trait TemplateContextBuildPhase[T] extends Phase[GeneratorContext, T] {
+  protected def isListType(dt: String) = isCollectionType(dt, "List") || isCollectionType(dt, "Array")
+
+  protected def isMapType(dt: String) = isCollectionType(dt, "Map")
+
+  protected def isCollectionType(dt: String, str: String) = {
+    dt == str || {
+      val idx = dt.indexOf("[")
+      idx > -1 && dt.substring(0, idx) == str
+    }
+  }
+}
+
+object BuildModelTemplateContext {
   object ModelContext {
     def empty = ModelContext(Set.empty, Set.empty, List.empty)
   }
   case class ModelContext(imports: Set[String], included: Set[String], list: List[ModelTemplateData])
+
+  def apply(): BuildModelTemplateContext = new BuildModelTemplateContext
+  def apply(context: GeneratorContext): ModelContext = (new BuildModelTemplateContext)(context)
+}
+class BuildModelTemplateContext extends TemplateContextBuildPhase[BuildModelTemplateContext.ModelContext] {
+  import BuildModelTemplateContext._
+
+  def apply(context: GeneratorContext): ModelContext = {
+    val mc =
+      context.modelBundle.foldLeft(ModelContext.empty) { (ctxt, bundleItem) =>
+        val records = for {
+          (className, bundleModel) <- bundleItem.models
+          model = buildModelTemplateData(className, bundleModel, context.config.compilerConfig)
+        } yield (model.imports, className, model)
+        records.foldLeft(ctxt) {
+          case (ModelContext(i, ic, mo), (ii, iicc, mmoo)) => ModelContext(i ++ ii, ic + iicc, mmoo :: mo)
+        }
+      }
+
+    mc.copy(list = (mc.list.head.copy(hasMore = false) :: mc.list.tail).reverse)
+  }
+
+  protected def buildModelTemplateData(className: String, model: Model, config: CompilerConfig): ModelTemplateData = {
+    val format = config.formatter
+
+    val (imports, properties) = {
+      model.properties.foldLeft((Set.empty[String], List.empty[ModelPropertyTemplateData])) {
+        case ((imp, mods), (name, prop @ ModelProperty(dt, req, desc, allowed, items))) =>
+          val propImports = mutable.HashSet.empty[String]
+          val btInter = if (items != null) {
+            propImports += dt
+            items map (it => it.ref.getOrElse(it.`type`)) getOrElse dt
+          } else dt
+          val baseType = format.languageConfig.typeMapping.get(btInter) getOrElse {
+            propImports += btInter
+            btInter
+          }
+          val typeOverrides = (format.languageConfig.defaultIncludes ++ format.languageConfig.languageSpecificPrimitives).toSet
+          if (!typeOverrides.contains(baseType)) {
+            propImports += baseType
+          }
+
+          val isContainer = isListType(dt) || isMapType(dt)
+          val isPrimitive = format.languageConfig.languageSpecificPrimitives.contains(baseType) || primitives.contains(baseType)
+
+          val realBaseType =
+            format.languageConfig.modelPackage.filter(_ => primitives.contains(baseType)).map(_+"."+baseType).getOrElse(baseType)
+          val (datatype, default) = format.declaration(prop)
+
+          val propData =
+            ModelPropertyTemplateData(
+              name = format.varName(name),
+              nameSingular = format.varName(name).singularize,
+              baseType = realBaseType,
+              baseTypeVarName = format.varName(baseType),
+              baseName = name,
+              datatype = datatype,
+              defaultValue = default,
+              description = desc.orNull,
+              notes = desc.orNull,
+              required = req,
+              getter = format.getter(name, datatype),
+              setter = format.setter(name, datatype),
+              isList = isListType(dt),
+              isMap = isMapType(dt),
+              isContainer = isContainer,
+              isNotContainer = !isContainer,
+              isPrimitive = isPrimitive,
+              complexType = if (isPrimitive) null else format.modelName(baseType)
+            )
+
+          (imp ++ propImports.toSet, propData :: mods)
+      }
+
+    }
+
+    format processModelMap {
+      ModelTemplateData(
+        classname = format.modelName(className),
+        classVarName = format.varName(className),
+        modelPackage = format.languageConfig.modelPackage,
+        newLine = config.newLine,
+        vars = (properties.head.copy(hasMore = false) :: properties.tail).reverse,
+        imports = imports
+      )
+    }
+  }
+}
+
+object BuildApiTemplateContext {
+  object ApiContext {
+    def empty = ApiContext(Set.empty, null, List.empty)
+  }
+  case class ApiContext(imports: Set[String], className: String, operations: List[OperationTemplateData])
 
   object OperationContext {
     def empty = OperationContext()
@@ -128,32 +241,28 @@ object GenerateFiles {
          headerParams: List[ParameterTemplateData] = Nil,
          bodyParams: List[ParameterTemplateData] = Nil,
          paramsList: List[ParameterTemplateData] = Nil)
+
+  def apply(context: GeneratorContext): List[ApiContext] = (new BuildApiTemplateContext)(context)
 }
-class GenerateFiles extends Phase[GeneratorContext, List[File]] {
+class BuildApiTemplateContext extends TemplateContextBuildPhase[List[BuildApiTemplateContext.ApiContext]] {
 
-  import GenerateFiles._
-
-  def apply(context: GeneratorContext): List[File] =
-    generateModels(context) ::: generateApis(context) ::: writeSupportingFiles(context)
-
-  protected def generateModels(context: GeneratorContext): List[File] = {
-    val mc =
-      context.modelBundle.foldLeft(ModelContext.empty) {
-        case (ctxt, bundleItem) =>
-          val records = for {
-            (className, bundleModel) <- bundleItem.models
-            model = buildModelTemplateData(className, bundleModel, context.config.compilerConfig)
-          } yield (model.imports, className, model)
-          records.foldLeft(ctxt) {
-            case (ModelContext(i, ic, mo), (ii, iicc, mmoo)) => ModelContext(i ++ ii, ic + iicc, mmoo :: mo)
-          }
+  import BuildApiTemplateContext._
+  def apply(context: GeneratorContext): List[ApiContext] = {
+    (context.apiBundle.foldLeft(List.empty[ApiContext]) { (ctxt, bundleItem) =>
+      val apis = bundleItem.apis map { opsItem =>
+        val item = for {
+           (apiPath, op) <- opsItem.operations
+          operation = buildOperationTemplateData(apiPath, op, context.compilerConfig)
+          imports = CoreUtils.extractModelNames(op)
+        } yield (operation, imports)
+        item.foldLeft(ApiContext.empty) {
+          case (acc, (operation, imports)) =>
+            acc.copy(acc.imports ++ imports, opsItem.className, operation :: acc.operations)
+        }
       }
-
-    val modelContext = mc.copy(list = (mc.list.head.copy(hasMore = false) :: mc.list.tail).reverse)
-    Nil
+      apis ::: ctxt
+    })
   }
-  protected def generateApis(context: GeneratorContext): List[File] = Nil
-  protected def writeSupportingFiles(context: GeneratorContext): List[File] = Nil
 
   protected def buildOperationTemplateData(path: String, operation: Operation, config: CompilerConfig): OperationTemplateData = {
     val format = config.formatter
@@ -246,73 +355,6 @@ class GenerateFiles extends Phase[GeneratorContext, List[File]] {
     )
     format.processApiMap(ot)
   }
-
-  protected def buildModelTemplateData(className: String, model: Model, config: CompilerConfig): ModelTemplateData = {
-    val format = config.formatter
-
-    val (imports, properties) = {
-      model.properties.foldLeft((Set.empty[String], List.empty[ModelPropertyTemplateData])) {
-        case ((imp, mods), (name, prop @ ModelProperty(dt, req, desc, allowed, items))) =>
-          var propImports = mutable.HashSet[String]()
-          val btInter = if (items != null) {
-            propImports += dt
-            items map (it => it.ref.getOrElse(it.`type`)) getOrElse dt
-          } else dt
-          val baseType = format.languageConfig.typeMapping.get(btInter) getOrElse {
-            propImports += btInter
-            btInter
-          }
-          val typeOverrides = (format.languageConfig.defaultIncludes ++ format.languageConfig.languageSpecificPrimitives).toSet
-          if (!typeOverrides.contains(baseType)) {
-            propImports += baseType
-          }
-
-          val isContainer = isListType(dt) || isMapType(dt)
-          val isPrimitive = format.languageConfig.languageSpecificPrimitives.contains(baseType) || primitives.contains(baseType)
-
-          val realBaseType =
-            format.languageConfig.modelPackage.filter(_ => primitives.contains(baseType)).map(_+"."+baseType).getOrElse(baseType)
-          val (datatype, default) = format.declaration(prop)
-
-          val propData =
-            ModelPropertyTemplateData(
-              name = format.varName(name),
-              nameSingular = format.varName(name).singularize,
-              baseType = realBaseType,
-              baseTypeVarName = format.varName(baseType),
-              baseName = name,
-              datatype = datatype,
-              defaultValue = default,
-              description = desc.orNull,
-              notes = desc.orNull,
-              required = req,
-              getter = format.getter(name, datatype),
-              setter = format.setter(name, datatype),
-              isList = isListType(dt),
-              isMap = isMapType(dt),
-              isContainer = isContainer,
-              isNotContainer = !isContainer,
-              isPrimitive = isPrimitive,
-              complexType = if (isPrimitive) null else format.modelName(baseType)
-            )
-
-          (imp ++ propImports.toSet, propData :: mods)
-      }
-
-    }
-
-    format processModelMap {
-      ModelTemplateData(
-        classname = format.modelName(className),
-        classVarName = format.varName(className),
-        modelPackage = format.languageConfig.modelPackage,
-        newLine = config.newLine,
-        vars = (properties.head.copy(hasMore = false) :: properties.tail).reverse,
-        imports = imports
-      )
-    }
-  }
-
   def allowableValuesToString(v: AllowableValues) = {
     v match {
       case av: AllowableListValues => {
@@ -324,15 +366,122 @@ class GenerateFiles extends Phase[GeneratorContext, List[File]] {
       case _ => None
     }
   }
+}
 
-  protected def isListType(dt: String) = isCollectionType(dt, "List") || isCollectionType(dt, "Array")
+object BuildTemplateContext {
 
-  protected def isMapType(dt: String) = isCollectionType(dt, "Map")
+  case class TemplateContext(
+    name: String,
+    `package`: Option[String],
+    baseName: String,
+    className: String,
+    invokerPackage: Option[String],
+    imports: List[ImportsData],
+    requiredModels: List[RequiredModel],
+    operations: List[ApiTemplateContext],
+    models: ModelTemplateContext,
+    basePath: String
+  )
 
-  protected def isCollectionType(dt: String, str: String) = {
-    dt == str || {
-      val idx = dt.indexOf("[")
-      idx > -1 && dt.substring(0, idx) == str
-    }
+  case class ApiTemplateContext(classname: String, operation: List[OperationTemplateData])
+  case class ModelTemplateContext(model: List[ModelTemplateData])
+
+  case class RequiredModel(name: String, hasMore: Boolean = false)
+  case class ImportsData(`import`: String) {
+    override def toString: String = "import " + `import`
   }
+}
+
+class BuildTemplateContext extends Phase[GeneratorContext, List[BuildTemplateContext.TemplateContext]] {
+  import BuildTemplateContext._
+
+  def apply(context: GeneratorContext): List[TemplateContext] = {
+    val modelContext = BuildModelTemplateContext(context)
+    val apiContexts = BuildApiTemplateContext(context)
+    val importScope = context.languageConfig.modelPackage map (_+".") getOrElse ""
+
+    val (allImports, imports) = collectImports(modelContext, apiContexts, context, importScope)
+    val requiredModels = collectRequiredModels(allImports)
+
+    val modelTemplateContexts = context.modelBundle map { item =>
+      TemplateContext(
+        name = item.name,
+        `package` = context.languageConfig.modelPackage,
+        baseName = null,
+        className = item.className,
+        invokerPackage = context.languageConfig.invokerPackage,
+        imports = imports.toList,
+        requiredModels = requiredModels,
+        operations = Nil,
+        models = ModelTemplateContext(modelContext.list),
+        basePath = ""
+      )
+    }
+
+    val apiTemplateContexts = context.apiBundle map { container =>
+      TemplateContext(
+        name = container.name,
+        `package` = context.languageConfig.apiPackage,
+        baseName = container.baseName,
+        className = container.className,
+        invokerPackage = context.languageConfig.invokerPackage,
+        imports = imports.toList,
+        requiredModels = requiredModels,
+        operations = apiContexts.map(ac => ApiTemplateContext(ac.className, ac.operations)),
+        models = null,
+        basePath = container.basepath
+      )
+    }
+    modelTemplateContexts ::: apiTemplateContexts
+  }
+
+  def collectRequiredModels(allImports: Set[String]): List[RequiredModel] = {
+    val allReqs = allImports.foldRight(List.empty[RequiredModel])(RequiredModel(_, hasMore = true) :: _)
+    if (allReqs.isEmpty) Nil else (allReqs.head.copy(hasMore = false) :: allReqs.tail).reverse
+  }
+
+  def collectImports(modelContext: BuildModelTemplateContext.ModelContext, apiContexts: List[BuildApiTemplateContext.ApiContext], context: GeneratorContext, importScope: String) = {
+    val apiImports = if (apiContexts.nonEmpty) apiContexts.map(_.imports).reduce(_ ++ _) else Set.empty[String]
+    val allImports = modelContext.imports ++ apiImports
+    val mappedImports = for {
+      i <- allImports
+      model = context.format.modelName(i)
+      if (!modelContext.included.contains(model) && context.languageConfig.importMapping.contains(model))
+    } yield ImportsData(context.languageConfig.importMapping(model))
+    val trimmedImports = allImports -- context.languageConfig.defaultIncludes -- SwaggerSpec.excludes
+    val remainingImports = for {
+      i <- trimmedImports
+      model = context.format.modelName(i)
+      if (!modelContext.included.contains(model) && !context.languageConfig.importMapping.contains(model) && !mappedImports.contains(ImportsData(importScope + model)))
+    } yield ImportsData(importScope + model)
+    (allImports, mappedImports ++ remainingImports)
+  }
+}
+
+class Memo[A, R] {
+  private[this] var cache = Map.empty[A, R]
+
+  def apply(x: A, f: A => R): R = {
+    if (!cache.contains(x)) cache += x -> f(x)
+    cache(x)
+  }
+}
+object GenerateFiles {
+
+  val templates = new Memo[String, (TemplateEngine, Template)]
+}
+class GenerateFiles extends Phase[GeneratorContext, List[File]] {
+
+  import GenerateFiles._
+
+  def apply(context: GeneratorContext): List[File] =
+    generateModels(context) ::: generateApis(context) ::: writeSupportingFiles(context)
+
+  protected def generateModels(context: GeneratorContext): List[File] = Nil
+  protected def generateApis(context: GeneratorContext): List[File] = Nil
+  protected def writeSupportingFiles(context: GeneratorContext): List[File] = Nil
+
+
+
+
 }
