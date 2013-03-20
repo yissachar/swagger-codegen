@@ -2,7 +2,33 @@ package com.wordnik.swagger.codegen.compiler
 
 import com.wordnik.swagger.model.{Operation, Model}
 
-private[swagger] case class ApiBundleItem(
+case class CompilerConfig(
+    packageName: String,
+    templateDir: String,
+    destinationDir: String,
+    apiTemplateFiles: Map[String, String] = Map.empty,
+    modelTemplateFiles: Map[String, String] = Map.empty,
+    apisToProcess: Set[String] = Set.empty,
+    modelsToProcess: Set[String] = Set.empty,
+    newLine: String = sys.props("line.separator"),
+    formatter: Formatter,
+    host: String = "http://localhost:8080/api-docs",
+    apiKey: Option[String] = None)
+
+case class GeneratorConfig(compilerConfig: CompilerConfig, basePath: String)
+
+case class LanguageConfig(
+  defaultIncludes: Set[String] = Set.empty,
+  languageSpecificPrimitives: Set[String] = Set.empty,
+  typeMapping: Map[String, String] = Map.empty,
+  reservedWords: Set[String] = Set.empty,
+  importMapping: Map[String, String] = Map.empty,
+  invokerPackage: Option[String] = None,
+  apiPackage: Option[String] = None,
+  modelPackage: Option[String] = None,
+  supportingFiles: List[(String, String, String)] = List.empty)
+
+case class ApiBundleItem(
   baseName: String,
   filename: String,
   name: String,
@@ -11,9 +37,9 @@ private[swagger] case class ApiBundleItem(
   apis: List[OperationBundleItem],
   outDir: String)
 
-private[swagger] case class OperationBundleItem(className: String, operations: List[(String, Operation)])
+case class OperationBundleItem(className: String, operations: List[(String, Operation)])
 
-private[swagger] case class ModelBundleItem(
+case class ModelBundleItem(
   name: String,
   className: String,
   filename: String,

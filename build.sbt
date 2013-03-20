@@ -7,7 +7,7 @@ name := "swagger-codegen"
 
 version := "3.0.0-SNAPSHOT"
 
-scalaVersion := "2.10.0"
+scalaVersion := "2.10.1"
 
 javacOptions ++= Seq("-Xlint:unchecked", "-Xlint:deprecation")
 
@@ -17,24 +17,17 @@ crossScalaVersions := Seq("2.9.0", "2.9.0-1", "2.9.1", "2.9.1-1", "2.9.2", "2.10
 
 libraryDependencies ++= Seq(
   "io.backchat.inflector" %% "scala-inflector" % "1.3.5",
-  "org.json4s" %% "json4s-jackson" % "3.1.0",
+  "org.json4s" %% "json4s-jackson" % "3.2.0",
   "commons-io" % "commons-io" % "2.3",
   "junit" % "junit" % "4.11" % "test",
   "org.scalatest" %% "scalatest" % "1.9.1" % "test"
 )
 
 libraryDependencies <+= scalaVersion {
-  case v if v.startsWith("2.9") => 
-    "org.fusesource.scalate" % "scalate-wikitext_2.9" % "1.6.1"
-  case v if v.startsWith("2.10") => 
-    "org.fusesource.scalate" %% "scalate-wikitext" % "1.6.1"
-}
-
-libraryDependencies <+= scalaVersion {
-  case v if v.startsWith("2.9") => 
-    "org.fusesource.scalate" % "scalate-page_2.9" % "1.6.1"
-  case v if v.startsWith("2.10") => 
-    "org.fusesource.scalate" %% "scalate-page" % "1.6.1"
+  case v if v.startsWith("2.9") =>
+    "org.fusesource.scalate" % "scalate-core_2.9" % "1.6.1"
+  case v if v.startsWith("2.10") =>
+    "org.fusesource.scalate" %% "scalate-core" % "1.6.1"
 }
 
 packageOptions <+= (name, version, organization) map {

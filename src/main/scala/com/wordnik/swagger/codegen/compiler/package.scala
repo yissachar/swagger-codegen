@@ -1,7 +1,6 @@
 package com.wordnik.swagger
 package codegen
 
-import config.{GeneratorConfig, CompilerConfig}
 import java.io.File
 import model.{ApiListing, ResourceListing}
 

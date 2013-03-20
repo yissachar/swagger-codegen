@@ -2,20 +2,16 @@ package com.wordnik.swagger
 package codegen
 package compiler
 
-import config._
 import model._
 import util.{CoreUtils, ApiExtractor, ResourceExtractor}
 import scala.util.control.Exception._
 import java.io.File
-import format._
 import collection.mutable
 import spec.SwaggerSpec._
-import mojolly.inflector.InflectorImports._
 import org.fusesource.scalate.{Binding, TemplateSource, Template, TemplateEngine}
 import spec.SwaggerSpec
-import org.fusesource.scalate.util.FileResourceLoader
 import org.apache.commons.io.FileUtils
-
+import mojolly.inflector.InflectorImports._
 
 class FetchResourceListing extends Phase[CompilerConfig, (GeneratorConfig, ResourceListing)] {
   def apply(context: CompilerConfig): (GeneratorConfig, ResourceListing) = {
