@@ -1,10 +1,9 @@
 package com.wordnik.swagger
-package codegen
 
 import java.io.File
 import model.{ApiListing, ResourceListing}
 
-package object compiler {
+package object codegen {
   type Phase[F, S] = F => S
   type Compiler = CompilerConfig => Seq[File]
   type FileGenerator = GeneratorContext => Seq[File]

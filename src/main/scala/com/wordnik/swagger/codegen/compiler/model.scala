@@ -1,4 +1,5 @@
-package com.wordnik.swagger.codegen.compiler
+package com.wordnik.swagger
+package codegen
 
 import com.wordnik.swagger.model.{Operation, Model}
 

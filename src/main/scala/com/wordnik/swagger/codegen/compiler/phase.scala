@@ -1,6 +1,5 @@
 package com.wordnik.swagger
 package codegen
-package compiler
 
 import model._
 import util.{CoreUtils, ApiExtractor, ResourceExtractor}

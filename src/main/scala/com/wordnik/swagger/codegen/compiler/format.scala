@@ -1,6 +1,5 @@
 package com.wordnik.swagger
 package codegen
-package compiler
 
 import mojolly.inflector.InflectorImports._
 import model._
