@@ -11,15 +11,16 @@ import format._
 import collection.mutable
 import spec.SwaggerSpec._
 import mojolly.inflector.InflectorImports._
-import org.fusesource.scalate.{Template, TemplateEngine}
+import org.fusesource.scalate.{Binding, TemplateSource, Template, TemplateEngine}
 import spec.SwaggerSpec
+import org.fusesource.scalate.util.FileResourceLoader
+import org.apache.commons.io.FileUtils
 
-sealed trait Phase[T, S] extends Function[T, S] {
-  def apply(context: T): S
-}
 
-class FetchResourceListing(host: String, apiKey: Option[String] = None) extends Phase[CompilerConfig, (GeneratorConfig, ResourceListing)] {
+class FetchResourceListing extends Phase[CompilerConfig, (GeneratorConfig, ResourceListing)] {
   def apply(context: CompilerConfig): (GeneratorConfig, ResourceListing) = {
+    val host = context.host
+    val apiKey = context.apiKey
     val format = context.formatter
     allCatch.withApply(e => throw new Exception("Unable to read from " + host, e)) {
       val doc = ResourceExtractor.fetchListing(format.resourcePath(host), apiKey)
@@ -28,17 +29,19 @@ class FetchResourceListing(host: String, apiKey: Option[String] = None) extends 
   }
 }
 
-class FetchApiListing(apiKey: Option[String]) extends Phase[(GeneratorConfig, ResourceListing), (GeneratorConfig, ResourceListing, List[ApiListing])] {
+class FetchApiListing extends Phase[(GeneratorConfig, ResourceListing), (GeneratorConfig, ResourceListing, List[ApiListing])] {
   def apply(context: (GeneratorConfig, ResourceListing)): (GeneratorConfig, ResourceListing, List[ApiListing]) = {
     val (gen, list) = context
+    val apiKey = gen.compilerConfig.apiKey
     require(list.apis != null && list.apis.nonEmpty, "No API's specified by resource")
     (gen, list, ApiExtractor.fetchApiListings(gen.basePath, list.apis, apiKey))
   }
 }
 
-class Fetcher(host: String, apiKey: Option[String] = None) extends Phase[CompilerConfig, (GeneratorConfig, ResourceListing, List[ApiListing])] {
+object FetchListings { def apply(): FetchListings = new FetchListings }
+class FetchListings extends Phase[CompilerConfig, (GeneratorConfig, ResourceListing, List[ApiListing])] {
   def apply(context: CompilerConfig): (GeneratorConfig, ResourceListing, List[ApiListing]) = {
-    (new FetchResourceListing(host, apiKey) andThen new FetchApiListing(apiKey))(context)
+    (new FetchResourceListing andThen new FetchApiListing)(context)
   }
 }
 
@@ -52,10 +55,10 @@ case class GeneratorContext(
   def format = compilerConfig.formatter
   def languageConfig = format.languageConfig
 }
-
-class PrepareApi extends Phase[(GeneratorConfig, List[ApiListing]), GeneratorContext] {
-  def apply(context: (GeneratorConfig, List[ApiListing])): GeneratorContext = {
-    val (config, apiListing) = context
+object CreateBundles { def apply(): CreateBundles = new CreateBundles }
+class CreateBundles extends Phase[(GeneratorConfig, ResourceListing, List[ApiListing]), GeneratorContext] {
+  def apply(context: (GeneratorConfig, ResourceListing, List[ApiListing])): GeneratorContext = {
+    val (config, _, apiListing) = context
     val format = config.compilerConfig.formatter
     val (operations, allModels) = apiOperationsAndModels(apiListing, format)
     val operationMap = groupOperationsToFiles(operations, format)
@@ -368,34 +371,11 @@ class BuildApiTemplateContext extends TemplateContextBuildPhase[List[BuildApiTem
   }
 }
 
-object BuildTemplateContext {
+object BuildTemplateContext { def apply(): BuildTemplateContext = new BuildTemplateContext }
 
-  case class TemplateContext(
-    name: String,
-    `package`: Option[String],
-    baseName: String,
-    className: String,
-    invokerPackage: Option[String],
-    imports: List[ImportsData],
-    requiredModels: List[RequiredModel],
-    operations: List[ApiTemplateContext],
-    models: ModelTemplateContext,
-    basePath: String
-  )
+class BuildTemplateContext extends Phase[GeneratorContext, (GeneratorContext, TemplateContext)] {
 
-  case class ApiTemplateContext(classname: String, operation: List[OperationTemplateData])
-  case class ModelTemplateContext(model: List[ModelTemplateData])
-
-  case class RequiredModel(name: String, hasMore: Boolean = false)
-  case class ImportsData(`import`: String) {
-    override def toString: String = "import " + `import`
-  }
-}
-
-class BuildTemplateContext extends Phase[GeneratorContext, List[BuildTemplateContext.TemplateContext]] {
-  import BuildTemplateContext._
-
-  def apply(context: GeneratorContext): List[TemplateContext] = {
+  def apply(context: GeneratorContext): (GeneratorContext, TemplateContext) = {
     val modelContext = BuildModelTemplateContext(context)
     val apiContexts = BuildApiTemplateContext(context)
     val importScope = context.languageConfig.modelPackage map (_+".") getOrElse ""
@@ -404,7 +384,7 @@ class BuildTemplateContext extends Phase[GeneratorContext, List[BuildTemplateCon
     val requiredModels = collectRequiredModels(allImports)
 
     val modelTemplateContexts = context.modelBundle map { item =>
-      TemplateContext(
+      (item, TemplateData(
         name = item.name,
         `package` = context.languageConfig.modelPackage,
         baseName = null,
@@ -413,13 +393,13 @@ class BuildTemplateContext extends Phase[GeneratorContext, List[BuildTemplateCon
         imports = imports.toList,
         requiredModels = requiredModels,
         operations = Nil,
-        models = ModelTemplateContext(modelContext.list),
+        models = ApiModelTemplateData(modelContext.list),
         basePath = ""
-      )
+      ))
     }
 
     val apiTemplateContexts = context.apiBundle map { container =>
-      TemplateContext(
+      (container, TemplateData(
         name = container.name,
         `package` = context.languageConfig.apiPackage,
         baseName = container.baseName,
@@ -427,12 +407,34 @@ class BuildTemplateContext extends Phase[GeneratorContext, List[BuildTemplateCon
         invokerPackage = context.languageConfig.invokerPackage,
         imports = imports.toList,
         requiredModels = requiredModels,
-        operations = apiContexts.map(ac => ApiTemplateContext(ac.className, ac.operations)),
+        operations = apiContexts.map(ac => ApiTemplateData(ac.className, ac.operations)),
         models = null,
         basePath = container.basepath
-      )
+      ))
     }
-    modelTemplateContexts ::: apiTemplateContexts
+
+    val supportingFileModels = for {
+      (bundle, item) <- modelTemplateContexts
+      tdata <- item.models.model
+      (_, model) <- bundle.models
+      modelJson = org.json4s.jackson.Serialization.write(model)(SwaggerSerializers.formats)
+    } yield SupportingFileModelData(bundle.name, tdata, bundle.filename, modelJson, hasMore = true)
+
+    val supportingFileApis = for {
+      (bundle, _) <- apiTemplateContexts
+      apiBundle <- bundle.apis
+      operations = for { (path, op) <- apiBundle.operations } yield SupportingFileOperationData(op, path)
+    } yield SupportingFileApiData(bundle.name, bundle.filename, bundle.className, bundle.basepath, operations)
+
+    val supportingFiles = SupportingFileTemplateData(
+      invokerPackage = context.languageConfig.invokerPackage,
+      `package` = context.compilerConfig.packageName,
+      modelPackage = context.languageConfig.modelPackage,
+      apiPackage = context.languageConfig.apiPackage,
+      models = supportingFileModels,
+      apis = supportingFileApis
+    )
+    (context, TemplateContext(modelTemplateContexts, apiTemplateContexts, supportingFiles))
   }
 
   def collectRequiredModels(allImports: Set[String]): List[RequiredModel] = {
@@ -448,7 +450,9 @@ class BuildTemplateContext extends Phase[GeneratorContext, List[BuildTemplateCon
       model = context.format.modelName(i)
       if (!modelContext.included.contains(model) && context.languageConfig.importMapping.contains(model))
     } yield ImportsData(context.languageConfig.importMapping(model))
+
     val trimmedImports = allImports -- context.languageConfig.defaultIncludes -- SwaggerSpec.excludes
+
     val remainingImports = for {
       i <- trimmedImports
       model = context.format.modelName(i)
@@ -458,29 +462,93 @@ class BuildTemplateContext extends Phase[GeneratorContext, List[BuildTemplateCon
   }
 }
 
-class Memo[A, R] {
-  private[this] var cache = Map.empty[A, R]
-
-  def apply(x: A, f: A => R): R = {
-    if (!cache.contains(x)) cache += x -> f(x)
-    cache(x)
-  }
-}
 object GenerateFiles {
 
-  val templates = new Memo[String, (TemplateEngine, Template)]
+  val ContextKey = "swaggerContext"
+  def apply():GenerateFiles = new GenerateFiles
 }
-class GenerateFiles extends Phase[GeneratorContext, List[File]] {
+class GenerateFiles extends Phase[(GeneratorContext, TemplateContext), List[File]] {
 
   import GenerateFiles._
 
-  def apply(context: GeneratorContext): List[File] =
-    generateModels(context) ::: generateApis(context) ::: writeSupportingFiles(context)
+  def apply(ctx: (GeneratorContext, TemplateContext)): List[File] = {
+    val (context, templateContext) = ctx
+    generateModels(context, templateContext.models) :::
+      generateApis(context, templateContext.apis) :::
+      writeSupportingFiles(context, templateContext.supportingFiles)
+  }
 
-  protected def generateModels(context: GeneratorContext): List[File] = Nil
-  protected def generateApis(context: GeneratorContext): List[File] = Nil
-  protected def writeSupportingFiles(context: GeneratorContext): List[File] = Nil
+  import sys.process._
+  protected def generateModels(context: GeneratorContext, models: List[(ModelBundleItem, TemplateData)]): List[File] = {
+    val engine = engineFor[TemplateData](context)
+    try {
+      for {
+        (item, model) <- models
+        (file, ext) <- context.compilerConfig.modelTemplateFiles
+        out = new File(item.outDir, item.filename + ext)
+      } yield compile(engine, file, out, model)
+    } finally {
+      engine.shutdown()
+    }
+  }
 
+  protected def generateApis(context: GeneratorContext, apis: List[(ApiBundleItem, TemplateData)]): List[File] = {
+    val engine = engineFor[TemplateData](context)
+    try {
+      for {
+        (item, api) <- apis
+        (file, ext) <- context.compilerConfig.apiTemplateFiles
+        out = new File(item.outDir, item.filename + ext)
+      } yield compile(engine, file, out, api)
+    } finally {
+      engine.shutdown()
+    }
+  }
+
+
+  protected def writeSupportingFiles(context: GeneratorContext, templateContext: SupportingFileTemplateData): List[File] = {
+    val engine = engineFor[SupportingFileTemplateData](context)
+    try {
+      for {
+        (file, outputDir, destination) <- context.languageConfig.supportingFiles
+        out = new File(outputDir, destination)
+      } yield compileOrCopy(engine, file, out, templateContext)
+    } finally {
+      engine.shutdown()
+    }
+  }
+
+  private[this] def compile[T](engine: TemplateEngine, template: String, out: File, data: T): File = {
+    if (out.getParentFile != null && !out.getParentFile.exists()) out.getParentFile.mkdirs()
+    val exitCode = (engine.layout(engine.source(template), Map(ContextKey -> data)) #> out !)
+    require(exitCode > 0, "Failed to write template " + out)
+    out
+  }
+
+  private[this] def compileOrCopy[T](engine: TemplateEngine, template: String, out: File, data: T): File = {
+    if (template.endsWith(".mustache")) compile(engine, template, out, data)
+    else {
+      require(out.getParentFile != null, "You need to specify a directory to copy stuff into")
+      val sourceFile = new File(engine.sourceDirectories.head, template)
+      if (sourceFile.isDirectory) {
+        FileUtils.copyDirectory(sourceFile, out.getParentFile)
+        out.getParentFile
+      } else {
+        if (out.getParentFile != null && !out.getParentFile.exists()) out.getParentFile.mkdirs()
+        FileUtils.copyFile(sourceFile, out, true)
+        out
+      }
+    }
+  }
+
+  private[this] def engineFor[T](context: GeneratorContext)(implicit mf: Manifest[T]) = {
+    val engine = new TemplateEngine(Seq(templateDir(context)))
+    engine.escapeMarkup = false
+    engine.bindings ::= Binding(ContextKey, mf.erasure.getName, importMembers = true)
+    engine
+  }
+
+  private[this] def templateDir(context: GeneratorContext) = new File(context.compilerConfig.templateDir)
 
 
 

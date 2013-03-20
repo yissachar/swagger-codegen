@@ -148,9 +148,8 @@ class Codegen(config: CodegenConfig) {
         }
       }
       val template = engine.compile(
-        TemplateSource.fromText(config.templateDir + File.separator + templateFile,
-          Source.fromInputStream(srcStream).mkString))
-      val t = Tuple2(engine, template)
+        TemplateSource.fromText(srcName, Source.fromInputStream(srcStream).mkString))
+      val t = engine -> template
       Codegen.templates += templateFile -> t
       t
     })

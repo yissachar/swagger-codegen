@@ -83,11 +83,11 @@ class BasicGeneratorTest extends FlatSpec with ShouldMatchers {
     val apiMap = generator.groupOperationsToFiles(ops)
 
     // verify all apis are there
-    (apiMap.keys.map(m => m._2).toSet & Set("user", "pet", "store")).size should be (3)
+    (apiMap.keys.map(_._2).toSet & Set("user", "pet", "store")).size should be (3)
 
     // inspect the store apis
     val orderApis = apiMap("http://petstore.swagger.wordnik.com/api","store").groupBy(_._1).toMap
-    val orderOperations = orderApis("/store.{format}/order/{orderId}").map(m => m._2)
+    val orderOperations = orderApis("/store.{format}/order/{orderId}").map(_._2)
 
     // 2 operations
     orderOperations.size should be (2)

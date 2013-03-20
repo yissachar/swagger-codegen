@@ -75,7 +75,7 @@ object ScalatraServerGenerator extends BasicScalaGenerator {
                     }
                     case "RANGE" => {
                       val r = values.split(",")
-                      Some("AllowableValues(Range(" + r(0) + "," + r(1) + ", 1))")
+                      Some("AllowableValues(" + r(0) + " to " + r(1) + ")")
                     }
                   }
                 }

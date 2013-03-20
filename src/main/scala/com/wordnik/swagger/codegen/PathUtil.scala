@@ -16,30 +16,19 @@
 
 package com.wordnik.swagger.codegen
 
+import mojolly.inflector.InflectorImports._
+
 trait PathUtil {
-  def getResourcePath(host: String) = {
-    System.getProperty("fileMap") match {
-      case s: String => {
-        s + "/resources.json"
-      }
-      case _ => host
-    }
-  }
 
-  def getBasePath(basePath: String) = {
-    System.getProperty("fileMap") match {
-      case s: String => s
-      case _ => basePath
-    }
-  }
+  def getResourcePath(host: String) = sys.props get "fileMap" map (_ + "/resources.json") getOrElse host
 
-  def toModelName(name: String) = {
-    name(0).toUpper + name.substring(1)
-  }
+  def getBasePath(basePath: String) = sys.props get "fileMap" getOrElse basePath
+
+  def toModelName(name: String) = name.pascalize
 
   def toApiName(name: String) = {
     name.replaceAll("\\{","").replaceAll("\\}", "") match {
-      case s: String if(s.length > 0) => s(0).toUpper + s.substring(1) + "Api"
+      case s: String if(s.length > 0) => s.pascalize + "Api"
       case _ => "Api"
     }
   }
