@@ -11,7 +11,7 @@ import collection.mutable
 object SwaggerSerializers {
   import ValidationMessage._
 
-  implicit val formats = DefaultFormats + 
+  implicit val formats: Formats = DefaultFormats +
     new ModelSerializer + 
     new ModelPropertySerializer +
     new ModelRefSerializer + 

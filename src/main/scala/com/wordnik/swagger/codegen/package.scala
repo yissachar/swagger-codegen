@@ -1,12 +1,12 @@
 package com.wordnik.swagger
 
 import java.io.File
-import model.{ModelProperty, ApiListing, ResourceListing}
+import model._
 
 package object codegen {
   type Phase[F, S] = F => S
   type Compiler = CompilerConfig => Seq[File]
-  type FileGenerator = GeneratorContext => Seq[File]
+  type FileGenerator[T <: GeneratorContext] = T => Seq[File]
   type BundleContext = (GeneratorConfig, ResourceListing, List[ApiListing])
 
 
@@ -17,7 +17,8 @@ package object codegen {
     def apply(
       fetchListings: Phase[CompilerConfig, BundleContext],
       createBundles: Phase[BundleContext, GeneratorContext],
-      generateFiles: FileGenerator): Compiler = fetchListings andThen createBundles andThen generateFiles
+      generateFiles: FileGenerator[GeneratorContext]): Compiler =
+        fetchListings andThen createBundles andThen generateFiles
   }
 
   object lang {

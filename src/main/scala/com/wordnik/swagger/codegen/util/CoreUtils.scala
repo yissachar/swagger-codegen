@@ -20,7 +20,8 @@ import com.wordnik.swagger.model._
 
 import scala.collection.mutable.{ HashSet, ListBuffer, HashMap }
 import scala.collection.JavaConversions._
-import com.wordnik.swagger.codegen.spec.SwaggerSpec._
+import com.wordnik.swagger.codegen.SwaggerSpec
+import SwaggerSpec._
 
 import scala.io.Source
 import collection.mutable
@@ -69,9 +70,8 @@ object CoreUtils {
 
   def collectSubModels(model: Model, allModels: Map[String, Model], collected: Set[String]): Set[String] = {
     model.properties.foldLeft(collected){ case (acc, (_, subObj)) =>
-      val propName = if (containers.contains(subObj.`type`)) {
-        subObj.items map { st => st.ref getOrElse st.`type` }
-      } else Some(subObj.`type`)
+      val propName = if (containers.contains(subObj.`type`)) subObj.items map { st => st.ref getOrElse st.`type` }
+                     else Some(subObj.`type`)
 
       propName.filterNot(collected.contains).filter(allModels.contains) map { prop =>
         collectSubModels(allModels(prop), allModels, acc ++ Set(prop))

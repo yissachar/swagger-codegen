@@ -18,7 +18,9 @@ crossScalaVersions := Seq("2.9.0", "2.9.0-1", "2.9.1", "2.9.1-1", "2.9.2", "2.10
 libraryDependencies ++= Seq(
   "io.backchat.inflector" %% "scala-inflector" % "1.3.5",
   "org.json4s" %% "json4s-jackson" % "3.2.0",
-  "commons-io" % "commons-io" % "2.3",
+  "org.slf4j" % "slf4j-api" % "1.7.3",
+  "ch.qos.logback" % "logback-classic" % "1.0.10" % "provided",
+  "commons-io" % "commons-io" % "2.4",
   "junit" % "junit" % "4.11" % "test",
   "org.scalatest" %% "scalatest" % "1.9.1" % "test"
 )

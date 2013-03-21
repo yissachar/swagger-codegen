@@ -14,7 +14,7 @@
  *  limitations under the License.
  */
 
-package com.wordnik.swagger.codegen.spec
+package com.wordnik.swagger.codegen
 
 object SwaggerSpec {
   val primitives = List("int", "string", "long", "double", "float", "boolean", "void")

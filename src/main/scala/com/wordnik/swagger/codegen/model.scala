@@ -1,7 +1,7 @@
 package com.wordnik.swagger
 package codegen
 
-import com.wordnik.swagger.model.{Operation, Model}
+import model._
 
 case class CompilerConfig(
     packageName: String,

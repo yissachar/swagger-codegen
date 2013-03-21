@@ -19,7 +19,7 @@ package com.wordnik.swagger.codegen
 import com.wordnik.swagger.model._
 import com.wordnik.swagger.codegen.util.CoreUtils
 import com.wordnik.swagger.codegen.language.CodegenConfig
-import com.wordnik.swagger.codegen.spec.SwaggerSpec._
+import SwaggerSpec._
 
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization.write
