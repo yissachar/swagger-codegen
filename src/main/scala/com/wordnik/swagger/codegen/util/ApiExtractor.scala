@@ -30,14 +30,14 @@ object ApiExtractor extends RemoteUrl {
     case e:java.io.FileNotFoundException =>
       println("WARNING!  Unable to read API " + basePath + api.path)
       None
-    case _ => None
+    case _: Throwable => None
   }
 
   private[this] def readJson(basePath: String, api: ApiListingReference, apiKey: Option[String] = None): String = {
-    if (basePath.startsWith("http")){
+    (if (basePath.startsWith("http")){
       println("calling: " + ((basePath + api.path + apiKey.getOrElse("")).replaceAll(".\\{format\\}", ".json")))
-      urlToString((basePath + api.path + apiKey.getOrElse("")).replaceAll(".\\{format\\}", ".json"))
-    } else Source.fromFile((basePath + api.path).replaceAll(".\\{format\\}", ".json")).mkString
+      Source.fromURL((basePath + api.path + apiKey.getOrElse("")).replaceAll(".\\{format\\}", ".json"))
+    } else Source.fromFile((basePath + api.path).replaceAll(".\\{format\\}", ".json"))).mkString
   }
 
   def fetchApiListings(basePath: String, apis: List[ApiListingReference], apiKey: Option[String] = None): List[ApiListing] = {

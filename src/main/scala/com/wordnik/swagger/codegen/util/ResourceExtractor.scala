@@ -22,9 +22,11 @@ import scala.io._
 
 object ResourceExtractor extends RemoteUrl {
   implicit val formats = SwaggerSerializers.formats
+  implicit val codec = Codec.UTF8
 
-	def fetchListing(path: String, apiKey: Option[String] = None): ResourceListing = {
-		val json = if(path.startsWith("http")) urlToString(path + apiKey.getOrElse("")) else Source.fromFile(path).mkString
-		read[ResourceListing](json)
-	}
+	def fetchListing(path: String, apiKey: Option[String] = None): ResourceListing =
+		read[ResourceListing](download(path, apiKey).mkString)
+
+  private def download(path: String, apiKey: Option[String] = None) =
+    if(path.startsWith("http")) Source.fromURL(path + apiKey.getOrElse("")) else Source.fromFile(path)
 }

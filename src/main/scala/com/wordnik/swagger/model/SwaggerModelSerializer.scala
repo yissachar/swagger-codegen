@@ -1,13 +1,11 @@
-package com.wordnik.swagger.model
+package com.wordnik.swagger
+package model
 
-import com.wordnik.swagger.codegen.spec.ValidationMessage
+import codegen.spec.ValidationMessage
 
 import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization.{read, write}
-
-import scala.collection.mutable.{ListBuffer, LinkedHashMap}
 import collection.mutable
 
 object SwaggerSerializers {
@@ -26,7 +24,7 @@ object SwaggerSerializers {
     new ResourceListingSerializer +
     new ApiListingSerializer
 
-  val validationMessages = ListBuffer.empty[ValidationMessage]
+  val validationMessages = mutable.ListBuffer.empty[ValidationMessage]
 
   def !!(element: AnyRef, elementType: String, elementId: String, message: String, level: String = ERROR) {
     val msg = new ValidationMessage(element, elementType, elementId, message, level)
@@ -61,8 +59,8 @@ object SwaggerSerializers {
           !!(json, RESOURCE, "resourcePath", "missing recommended field", WARNING)
           ""
         }),
-        (json \ "apis").extract[List[ApiDescription]],
-        (json \ "models").extract[Map[String, Model]]
+        (json \ "apis").extractOrElse(List.empty[ApiDescription]),
+        (json \ "models").extractOrElse(Map.empty[String, Model])
       )
     }, {
       case x: ApiListing =>
@@ -248,7 +246,8 @@ object SwaggerSerializers {
           case e:AllowableValues => Extraction.decompose(x.allowableValues)
           case _ => JNothing
         }
-      }) ~ ("paramType" -> x.paramType)
+      }) ~
+      ("paramType" -> x.paramType)
     }
   ))
 

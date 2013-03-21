@@ -57,14 +57,10 @@ package object codegen {
           override def declaration(property: ModelProperty): (String, String) = {
             property.`type` match {
               case "Array" => {
-                val inner = {
-                  property.items match {
-                    case Some(items) => items.ref.getOrElse(items.`type`)
-                    case _ => throw new Exception("no inner type defined")
-                  }
-                }
-                val e = "List[%s]" format declaredType(inner)
-                (e, defaultValue(inner, property))
+                property.items map { items =>
+                  val inner = items.ref.getOrElse(items.`type`)
+                  ("List[%s]" format declaredType(inner), defaultValue(inner, property))
+                } getOrElse sys.error("No inner type defined.")
               }
               case e => (declaredType(e), defaultValue(e, property))
             }

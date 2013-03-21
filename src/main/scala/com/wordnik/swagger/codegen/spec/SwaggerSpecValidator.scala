@@ -14,24 +14,18 @@
  *  limitations under the License.
  */
 
-package com.wordnik.swagger.codegen.spec
+package com.wordnik.swagger
+package codegen
+package spec
 
-import com.wordnik.swagger.model._
-import com.wordnik.swagger.codegen.PathUtil
-import com.wordnik.swagger.codegen.spec.SwaggerSpec._
-import com.wordnik.swagger.codegen.util.CoreUtils
+import model._
+import SwaggerSpec._
+import util.CoreUtils
 
-import java.util.logging.Logger
-import String.format
-
-import scala.collection.mutable.ListBuffer
-import scala.collection.JavaConversions._
-
+import collection.{immutable, mutable}
 import org.fusesource.scalate.{ TemplateSource, TemplateEngine }
 import java.io.{ FileWriter, File }
-import scala.io.Source
-import scala.collection.mutable.HashSet
-import scala.collection.immutable.HashMap
+import org.slf4j.LoggerFactory
 
 class SwaggerSpecValidator(private val doc: ResourceListing,
   private val apis: List[ApiListing],
@@ -39,9 +33,9 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
 
   import ValidationMessage._
 
-  private val validationMessages = ListBuffer.empty[ValidationMessage]
+  private val validationMessages = mutable.ListBuffer.empty[ValidationMessage]
 
-  private val LOGGER = Logger.getLogger(classOf[SwaggerSpecValidator].getName)
+  private val logger = LoggerFactory.getLogger(classOf[SwaggerSpecValidator].getName)
 
   def validate() {
     checkRootProperties()
@@ -49,10 +43,12 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
     apis.foreach(api => {
       fixSubDoc(api)
 
-      if (api.models != null) {
-        fixReturnModels(api.models.toMap, apis)
-        fixInputDataTypes(api.models.toMap, apis)
-        fixModels(api.models.toMap)
+      if (api.models != null && api.models.nonEmpty) {
+        fixReturnModels(api.models, apis)
+        fixInputDataTypes(api.models, apis)
+        fixModels(api.models)
+      } else {
+        logger.warn("No models found for listing " + api.basePath)
       }
     })
 
@@ -61,9 +57,9 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
     println(this)
   }
 
-  def validateResponseModels(subDocs: List[ApiListing]) = {
+  def validateResponseModels(subDocs: List[ApiListing]) {
     val validModelNames = CoreUtils.extractAllModels(subDocs).map(m => m._1).toSet
-    val requiredModels = new HashSet[String]
+    val requiredModels = new mutable.HashSet[String]
      subDocs.foreach(subDoc => {
        if (subDoc.apis != null) {
 	       subDoc.apis.foreach(api => {
@@ -93,8 +89,8 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
         val engine = new TemplateEngine(Some(rootDir))
         val templateLocation = "validator" + File.separator + "index.mustache"
         val template = engine.compile(
-          TemplateSource.fromText(templateLocation, Source.fromInputStream(getClass.getClassLoader.getResourceAsStream(templateLocation)).mkString))
-        val output = engine.layout(templateLocation, template, HashMap(
+          TemplateSource.fromText(templateLocation, io.Source.fromInputStream(getClass.getClassLoader.getResourceAsStream(templateLocation)).mkString))
+        val output = engine.layout(templateLocation, template, immutable.HashMap(
           "messages" -> validationMessages,
           "host" -> host,
           "basePath" -> doc.basePath,
@@ -121,15 +117,15 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
   private def checkRootProperties() {
     doc.swaggerVersion match {
       case e: String => println("swagger version: " + e)
-      case _ => !!(doc, RESOURCE_LISTING, "Properties", "Missing swagger version")
+      case _ => addError(doc, RESOURCE_LISTING, "Properties", "Missing swagger version")
     }
     doc.basePath match {
       case e: String => println("basePath: " + e)
-      case _ => !!(doc, RESOURCE_LISTING, "Properties", "Missing base path")
+      case _ => addError(doc, RESOURCE_LISTING, "Properties", "Missing base path")
     }
     doc.apiVersion match {
       case e: String => println("api version: " + e)
-      case _ => !!(doc, RESOURCE_LISTING, "Properties", "Missing api version", WARNING)
+      case _ => addError(doc, RESOURCE_LISTING, "Properties", "Missing api version", WARNING)
     }
   }
 
@@ -137,7 +133,7 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
    * this is here because sub documents don't have the same resourcePath as declared in
    * the main resource listing
    */
-  private def fixSubDoc(api: ApiListing) = {
+  private def fixSubDoc(api: ApiListing) {
     if (api.resourcePath.indexOf(".{format}") == -1) {
       doc.apis.foreach(op => {
         if (op.path.indexOf(".{format}") > 0 && op.path.replaceAll(".\\{format\\}", "") == api.resourcePath) {
@@ -152,22 +148,22 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
   /**
    * this is here because models don't have the proper references to types
    */
-  private def fixModels(models: Map[String, Model]) = {
+  private def fixModels(models: Map[String, Model]) {
     val validModelNames = models.map(_._1).toSet
-    LOGGER.finest("all valid models: " + validModelNames)
+    logger.debug("all valid models: " + validModelNames)
     for ((name, model) <- models) {
       // id of model
       getUpdatedType(validModelNames, model.id) match {
         case Some(updatedType) => {
           if (!model.id.equals(updatedType)) {
-            !!(model, MODEL, model.id, format("Invalid id. Best guess: %s", updatedType))
-            LOGGER.finest("updated " + model.id + " to " + updatedType)
+            addError(model, MODEL, model.id, "Invalid id. Best guess: %s" format updatedType)
+            logger.debug("updated " + model.id + " to " + updatedType)
             if (fix) model.id = updatedType
           }
         }
         case None => {
-          LOGGER.finest("can't find type for " + model.name + ", type " + model.id)
-          !!(model, MODEL, model.name, format("Missing type (%s)", model.id))
+          logger.debug("can't find type for " + model.name + ", type " + model.id)
+          addError(model, MODEL, model.name, "Missing type (%s)" format model.id)
         }
       }
 
@@ -182,8 +178,8 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
               getUpdatedType(validModelNames, item.ref.getOrElse(null)) match {
                 case Some(updatedType) => {
                   if (!item.ref.get.equals(updatedType)) {
-                    !!(model, MODEL_PROPERTY, format("%s->%s: %s", model.id, subObjectName, subObject.`type`), format("Invalid ref (%s). Best guess: %s", item.ref, updatedType))
-                    LOGGER.finest("updated subObject.items.ref " + item.ref + " to " + updatedType)
+                    addError(model, MODEL_PROPERTY, "%s->%s: %s" format (model.id, subObjectName, subObject.`type`), "Invalid ref (%s). Best guess: %s" format (item.ref, updatedType))
+                    logger.debug("updated subObject.items.ref " + item.ref + " to " + updatedType)
                     if (fix) {
                       subObject.items = Some(ModelRef(null, Some(updatedType)))
                     }
@@ -202,14 +198,14 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
                 getUpdatedType(validModelNames, item.ref.getOrElse(null)) match {
                   case Some(updatedType) => {
                     if (!item.ref.equals(updatedType)) {
-                      !!(model, MODEL_PROPERTY, format("%s->%s: %s", model.id, subObjectName, subObject.`type`), format("Invalid ref (%s). Best guess: %s", item.ref, updatedType))
-                      LOGGER.finest("updated subObject.items.ref " + item.ref + " to " + updatedType)
+                      addError(model, MODEL_PROPERTY, "%s->%s: %s" format (model.id, subObjectName, subObject.`type`), "Invalid ref (%s). Best guess: %s" format (item.ref, updatedType))
+                      logger.debug("updated subObject.items.ref " + item.ref + " to " + updatedType)
                       if (fix) subObject.items = Some(ModelRef(null, Some(updatedType)))
                     }
                   }
                   case None => {
-                    !!(model, MODEL_PROPERTY, format("%s->%s: %s", model.id, subObjectName, subObject.`type`), format("Invalid ref (%s).", item.ref))
-                    LOGGER.finest("didn't know what to do with " + item.ref)
+                    addError(model, MODEL_PROPERTY, "%s->%s: %s" format (model.id, subObjectName, subObject.`type`), "Invalid ref (%s)." format item.ref)
+                    logger.debug("didn't know what to do with " + item.ref)
                   }
                 }
               }
@@ -217,36 +213,27 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
             }
           }
           else if (subObject.items != null && subObject.items != None && subObject.items.get.`type` != null) {
-            subObject.items match {
-              case Some(item) => {
-                getUpdatedType(validModelNames, item.`type`) match {
-                  case Some(updatedType) => {
-                    if (!item.`type`.equals(updatedType)) {
-                      !!(model, MODEL_PROPERTY, format("%s->%s: %s", model.id, subObjectName, subObject.`type`), format("Invalid type (%s). Best guess: %s", item.`type`, updatedType))
-                      LOGGER.finest("updated subObject.items.type" + item.`type` + " to " + updatedType)
-                      if (fix) subObject.items = Some(ModelRef(`type` = updatedType))
-                    }
-                  }
-                  case None => {
-                    println("nothing found for " + subObject)
-                    !!(model, MODEL_PROPERTY, format("%s->%s: %s", model.id, subObjectName, subObject.`type`), format("Invalid ref (%s).", item.ref))
-                    LOGGER.finest("didn't know what to do with " + item.ref)
-                  }
+            subObject.items foreach { item =>
+              (getUpdatedType(validModelNames, item.`type`) map { updatedType =>
+                if (!item.`type`.equals(updatedType)) {
+                  addError(model, MODEL_PROPERTY, "%s->%s: %s" format (model.id, subObjectName, subObject.`type`), "Invalid type (%s). Best guess: %s" format (item.`type`, updatedType))
+                  logger.debug("updated subObject.items.type" + item.`type` + " to " + updatedType)
+                  if (fix) subObject.items = Some(ModelRef(`type` = updatedType))
                 }
+              }) getOrElse {
+                println("nothing found for " + subObject)
+                addError(model, MODEL_PROPERTY, "%s->%s: %s" format (model.id, subObjectName, subObject.`type`), "Invalid ref (%s)." format item.ref)
+                logger.debug("didn't know what to do with " + item.ref)
               }
-              case _ =>
             }
           }
         } else {
-          getUpdatedType(validModelNames, subObject.`type`) match {
-            case Some(updatedType) => {
-              if (!subObject.`type`.equals(updatedType)) {
-                !!(model, MODEL_PROPERTY, format("%s->%s: %s", model.id, subObjectName, subObject.`type`), format("Invalid type (%s). Best guess: %s", subObject.`type`, updatedType))
-                LOGGER.finest("updated subObject.getType " + subObject.`type` + " to " + updatedType)
-                if (fix) subObject.`type` = updatedType
-              }
+          getUpdatedType(validModelNames, subObject.`type`) foreach { updatedType =>
+            if (!subObject.`type`.equals(updatedType)) {
+              addError(model, MODEL_PROPERTY, "%s->%s: %s" format (model.id, subObjectName, subObject.`type`), "Invalid type (%s). Best guess: %s" format (subObject.`type`, updatedType))
+              logger.debug("updated subObject.getType " + subObject.`type` + " to " + updatedType)
+              if (fix) subObject.`type` = updatedType
             }
-            case None =>
           }
         }
       })
@@ -254,8 +241,8 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
       model.properties = model.properties.filter(prop => {
         if (prop._1.indexOf("$") == -1) true
         else {
-          !!(model, MODEL, model.id, format("Invalid property %s. Removing it", prop._1))
-          LOGGER.finest("removing invalid property " + prop._1)
+          addError(model, MODEL, model.id, "Invalid property %s. Removing it" format prop._1)
+          logger.debug("removing invalid property " + prop._1)
           if (fix) false else true
         }
       })
@@ -265,7 +252,7 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
   /**
    * this is here because input params in operations don't match primitives or model names
    */
-  private def fixInputDataTypes(models: Map[String, Model], a: List[ApiListing]) = {
+  private def fixInputDataTypes(models: Map[String, Model], a: List[ApiListing]) {
     val validModelNames = models.map(m => m._1).toSet
 
     // List[ApiListing]
@@ -275,42 +262,30 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
           // List[ApiDescription]
           api.operations.foreach(op => {
             // List[Operation]
-            val modelNames = new ListBuffer[String]
             if(op.parameters != null) {
               op.parameters.foreach(p => {
                 val dataType = p.dataType
 
                 p.paramType match {
                   case "body" => {
-                    getUpdatedType(validModelNames, dataType) match {
-                      case Some(updatedName) => {
-                        if (!p.dataType.equals(updatedName)) {
-                          //                      LOGGER.finest("--> updated " + dataType + " to " + updatedName)
-                          !!(p, OPERATION_PARAM, format("%s.%s(body: %s)", apiNameFromPath(api.path), op.nickname, p.dataType), format("Invalid data type %s. Best guess: %s", p.dataType, updatedName))
-                          if (fix) p.dataType = updatedName
-                        }
+                    getUpdatedType(validModelNames, dataType) foreach { updatedName =>
+                      if (!p.dataType.equals(updatedName)) {
+                        //                      LOGGER.finest("--> updated " + dataType + " to " + updatedName)
+                        addError(p, OPERATION_PARAM, "%s.%s(body: %s)" format (apiNameFromPath(api.path), op.nickname, p.dataType), "Invalid data type %s. Best guess: %s" format (p.dataType, updatedName))
+                        if (fix) p.dataType = updatedName
                       }
-                      case _ => LOGGER.finest("rats!") // leave it alone
                     }
                   }
                   case "path" => {
-                    getUpdatedType(validModelNames, dataType) match {
-                      case Some(updatedName) => {
-                        //                      LOGGER.finest("--> updated " + dataType + " to " + updatedName)
-                        !!(p, OPERATION_PARAM, format("%s.%s(path_%s: %s)", apiNameFromPath(api.path), op.nickname, p.name, p.dataType), format("Invalid data type %s. Best guess: %s", p.dataType, updatedName))
-                        if (fix) p.dataType = updatedName
-                      }
-                      case _ => // leave it alone
+                    getUpdatedType(validModelNames, dataType) foreach { updatedName =>
+                      addError(p, OPERATION_PARAM, "%s.%s(path_%s: %s)" format (apiNameFromPath(api.path), op.nickname, p.name, p.dataType), "Invalid data type %s. Best guess: %s" format (p.dataType, updatedName))
+                      if (fix) p.dataType = updatedName
                     }
                   }
                   case "query" => {
-                    getUpdatedType(validModelNames, dataType) match {
-                      case Some(updatedName) => {
-                        //                      LOGGER.finest("--> updated " + dataType + " to " + updatedName)
-                        !!(p, OPERATION_PARAM, format("%s.%s(query_%s: %s)", apiNameFromPath(api.path), op.nickname, p.name, p.dataType), format("Invalid %s. Best guess: %s", p.dataType, updatedName))
-                        if (fix) p.dataType = updatedName
-                      }
-                      case _ => // leave it alone
+                    getUpdatedType(validModelNames, dataType) foreach { updatedName =>
+                      addError(p, OPERATION_PARAM, "%s.%s(query_%s: %s)" format (apiNameFromPath(api.path), op.nickname, p.name, p.dataType), "Invalid %s. Best guess: %s" format (p.dataType, updatedName))
+                      if (fix) p.dataType = updatedName
                     }
                   }
                   case _ =>
@@ -327,7 +302,7 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
   /**
    * this is here because the return types are inconsistent from the swagger-core-1.02-SNAPSHOT
    */
-  private def fixReturnModels(models: Map[String, Model], a: List[ApiListing]) = {
+  private def fixReturnModels(models: Map[String, Model], a: List[ApiListing]) {
     val validModelNames = models.map(m => m._1).toSet
 
     // List[ApiListing]
@@ -339,16 +314,12 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
             // List[Operation]
             val responseClass = op.responseClass
             if (responseClass != null) {
-              getUpdatedType(validModelNames, responseClass) match {
-                case Some(updatedName) => {
-                  if (!responseClass.equals(updatedName)) {
-                    LOGGER.finest("--> updated " + responseClass + " to " + updatedName)
-                    !!(op, OPERATION, format("%s.%s(): %s", apiNameFromPath(api.path), op.nickname, op.responseClass), format("Invalid response class. Best guess: %s", updatedName))
-                    if (fix) op.responseClass = updatedName
-                  }
+              getUpdatedType(validModelNames, responseClass) foreach { updatedName =>
+                if (!responseClass.equals(updatedName)) {
+                  logger.debug("--> updated " + responseClass + " to " + updatedName)
+                  addError(op, OPERATION, "%s.%s(): %s" format (apiNameFromPath(api.path), op.nickname, op.responseClass), "Invalid response class. Best guess: %s" format updatedName)
+                  if (fix) op.responseClass = updatedName
                 }
-                case _ => {
-                } // leave it alone
               }
             }
           })
@@ -358,58 +329,27 @@ class SwaggerSpecValidator(private val doc: ResourceListing,
   }
 
   private def getUpdatedType(validModelNames: Set[String], name: String): Option[String] = {
-    if(name == null) return None
+    val ComplexTypeMatcher = ".*\\[(.*)\\].*".r
 
-    if (validModelNames.contains(name)) {
-      Some(name)
-    } else if (name.indexOf("[") > 0) {
-      // it's a complex value
-      val ComplexTypeMatcher = ".*\\[(.*)\\].*".r
-      val ComplexTypeMatcher(basePart) = name
-
-      getUpdatedType(validModelNames, basePart) match {
-        case Some(updatedPart) => {
-          Some(name.replaceAll(java.util.regex.Pattern.quote(basePart), updatedPart))
-        }
-        case _ => None
-      }
-    } else if (name.indexOf(".") > 0) {
-      val basePart = name.split("\\.").last
-      getUpdatedType(validModelNames, basePart) match {
-        case Some(updatedPart) => {
-          Some(updatedPart)
-        }
-        case _ => {
-          None
-        }
-      }
-    } else if (!primitives.contains(name)) {
-      val pc = name
-      if (validModelNames.contains(pc)) {
-        Some(pc)
-      } else if (pc == "Ok") {
-        Some("void")
-      } else if (pc == "Long") {
-        Some("long")
-      } else if (pc == "Double") {
-        Some("double")
-      } else if (pc == "Float") {
-        Some("float")
-      } else if (pc == "Boolean") {
-        Some("boolean")
-      } else if (pc == "Integer") {
-        Some("int")
-      } else if (pc == "Byte") {
-        Some("byte")
-      } else {
-        None
-      }
-    } else {
-      None
+    name match {
+      case v if validModelNames.contains(v) => Some(v)
+      case v @ ComplexTypeMatcher(basePart) if v.indexOf("[") > 0 =>
+        getUpdatedType(validModelNames, basePart) map (name.replaceAll(java.util.regex.Pattern.quote(basePart), _))
+      case v if (name.indexOf(".") > 0) =>
+        val basePart = name.split("\\.").last
+        getUpdatedType(validModelNames, basePart)
+      case "Ok" if !primitives.contains(name) => Some("void")
+      case "Long" if !primitives.contains(name) => Some("long")
+      case "Double" if !primitives.contains(name) => Some("double")
+      case "Float" if !primitives.contains(name) => Some("float")
+      case "Boolean" if !primitives.contains(name) => Some("boolean")
+      case "Integer" if !primitives.contains(name) => Some("int")
+      case "Byte" if !primitives.contains(name) => Some("byte")
+      case _ => None
     }
   }
 
-  def !!(element: AnyRef, elementType: String, elementId: String, message: String, level: String = ERROR) {
+  def addError(element: AnyRef, elementType: String, elementId: String, message: String, level: String = ERROR) {
     validationMessages += new ValidationMessage(element, elementType, elementId, message, level)
   }
 
