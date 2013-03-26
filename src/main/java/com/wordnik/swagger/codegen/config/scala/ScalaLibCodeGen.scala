@@ -79,6 +79,7 @@ class ScalaLibCodeGen(
   configPath: String) extends LibraryCodeGenerator {
 
   if (apiTemplateVersion == "v2") this.setAPIObjectTemplateName("ResourceObjectV2")
+  if (apiTemplateVersion == "v3") this.setAPIObjectTemplateName("ResourceObjectV3")
 
   this.reservedWordMapper = new ScalaReservedWordMapper
 
