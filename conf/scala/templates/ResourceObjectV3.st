@@ -26,7 +26,8 @@ import com.wordnik.swagger.runtime.exception._
 import com.wordnik.swagger.client._
 import com.wordnik.swagger.client.RestClient._
 import java.io.IOException
-
+import akka.dispatch.{Await, ExecutionContext, Future}
+import akka.util.duration._
 import scala.collection.mutable._
 import scala.collection.JavaConversions._
 
@@ -111,11 +112,7 @@ $endif$
         val responseF =  getRestClient().submit(method = method, uri = resourcePath, params=queryParams, headers=headerParams, body="")
      $endif$
 
-     var response:String  = ""
-     responseF onComplete {
-        case Right(res) => response = res.body
-        case Left(apie) => throw new APIException(APIExceptionCodes.ERROR_FROM_WEBSERVICE_CALL, apie.getMessage)
-     }
+     val response:java.lang.String  =  Await.result(responseF map (_.body) recover { case t: Throwable => throw new APIException(APIExceptionCodes.ERROR_FROM_WEBSERVICE_CALL, t.getMessage)}, 30 seconds)
 $if(!method.responseVoid)$
     $if(method.hasResponseValue)$
         $if(!method.returnValueList)$
