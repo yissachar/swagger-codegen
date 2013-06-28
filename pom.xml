@@ -2,7 +2,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.wordnik</groupId>
-    <artifactId>swagger-codegen_2.9.1</artifactId>
+    <artifactId>swagger-codegen_2.10</artifactId>
     <packaging>jar</packaging>
     <name>wordnik-swagger-codegen</name>
     <version>1.1.6</version>
@@ -165,7 +165,7 @@
                 <groupId>org.scala-tools</groupId>
                 <artifactId>maven-scala-plugin</artifactId>
                 <configuration>
-                    <scalaVersion>${scala.version}</scalaVersion>
+                    <scalaVersion>2.10</scalaVersion>
                 </configuration>
             </plugin>
         </plugins>
@@ -262,12 +262,12 @@
         <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
-            <version>${scala-version}</version>
+            <version>${scala-version-compiler}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.scalatest</groupId>
-            <artifactId>scalatest_2.9.1</artifactId>
+            <artifactId>scalatest_2.10</artifactId>
             <version>${scala-test-version}</version>
             <scope>test</scope>
         </dependency>
@@ -314,17 +314,18 @@
         </repository>
     </repositories>
     <properties>
-        <scala-version>2.9.1</scala-version>
-        <scala-test-version>1.6.1</scala-test-version>
+        <scala-version>2.10</scala-version>
+        <scala-version-compiler>2.10.0</scala-version-compiler>
+        <scala-test-version>1.9.1</scala-test-version>
         <swagger-codegen-version>1.1</swagger-codegen-version>
         <servlet-api-version>2.5</servlet-api-version>
         <jersey-version>1.7</jersey-version>
         <jackson-version>1.7.7</jackson-version>
-        <junit-version>4.8.1</junit-version>
+        <junit-version>4.11</junit-version>
         <maven-plugin.version>1.0.0</maven-plugin.version>
         <commons-beanutils-version>1.8.0</commons-beanutils-version>
         <commons-lang-version>2.4</commons-lang-version>
-        <slf4j-version>1.5.8</slf4j-version>
+        <slf4j-version>1.7.5</slf4j-version>
         <org.antlr-version>3.2</org.antlr-version>
     </properties>
 </project>
