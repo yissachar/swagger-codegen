@@ -153,7 +153,7 @@ $endif$
 
     def  getRestClient():RestClient = {
         if(null == restClient){
-            restClient = new RestClient(SwaggerConfig(baseUrl="", serviceName=""));
+            restClient = new RestClient(SwaggerConfig(baseUrl="", serviceName=""), false, "");
         }
         return restClient;
     }
