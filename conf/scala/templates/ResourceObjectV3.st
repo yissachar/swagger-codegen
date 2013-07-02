@@ -26,10 +26,11 @@ import com.wordnik.swagger.runtime.exception._
 import com.wordnik.swagger.client._
 import com.wordnik.swagger.client.RestClient._
 import java.io.IOException
-import akka.dispatch.{Await, ExecutionContext, Future}
-import akka.util.duration._
 import scala.collection.mutable._
 import scala.collection.JavaConversions._
+import scala.concurrent._
+import scala.concurrent.duration._
+import ExecutionContext.Implicits.global
 
 $imports:{ import |
 import $import$
@@ -144,7 +145,7 @@ $if(!method.responseVoid)$
                     val args = Array(response, typeRef.toString())
                     throw new APIException(APIExceptionCodes.ERROR_CONVERTING_JSON_TO_JAVA, args, "Error in converting response json value to java object : " + ioe.getMessage(), ioe)
                 }
-                case _ => throw new APIException(APIExceptionCodes.ERROR_CONVERTING_JSON_TO_JAVA, "Error in converting response json value to java object")
+                case _: Throwable => throw new APIException(APIExceptionCodes.ERROR_CONVERTING_JSON_TO_JAVA, "Error in converting response json value to java object")
             }
     $endif$
 $endif$
@@ -153,7 +154,7 @@ $endif$
 
     def  getRestClient():RestClient = {
         if(null == restClient){
-            restClient = new RestClient(SwaggerConfig(baseUrl="", serviceName=""), false, "");
+            restClient = new RestClient(SwaggerConfig(baseUrl=""));
         }
         return restClient;
     }
