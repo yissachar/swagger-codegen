@@ -203,6 +203,9 @@ class ScalaAsyncClientGenerator(cfg: SwaggerGenConfig) extends BasicGenerator {
   override val modelPackage: Option[String] = Some(packageName + ".model")
   override val apiPackage: Option[String] = Some(packageName + ".apis")
 
+  additionalParams += "clientName" -> cfg.api.clientName.underscore.pascalize
+  additionalParams += "projectName" -> cfg.api.clientName.underscore.dasherize
+
 
   override val reservedWords: Set[String] =
     Set(
@@ -245,7 +248,7 @@ class ScalaAsyncClientGenerator(cfg: SwaggerGenConfig) extends BasicGenerator {
       "while",
       "with",
       "yield")
-  override val importMapping = Map(
+  override val importMapping: Map[String, String] = Map(
       "Date" -> "java.util.Date",
       "File" -> "java.io.File"
     ) ++ cfg.defaultImports ++ cfg.api.defaultImports
@@ -285,7 +288,7 @@ class ScalaAsyncClientGenerator(cfg: SwaggerGenConfig) extends BasicGenerator {
   modelTemplateFiles ++= cfg.api.modelTemplates
   apiTemplateFiles ++= cfg.api.apiTemplates
 
-  codegen = new AsyncClientCodegen(cfg.api.clientName, this, Some(cfg.projectRoot))
+  codegen = new Codegen(this)
 
   override def getBasePath(host: String, basePath: String, fileMap: Option[String]): String =
     cfg.api.baseUrl.getOrElse(super.getBasePath(host, basePath, fileMap))
