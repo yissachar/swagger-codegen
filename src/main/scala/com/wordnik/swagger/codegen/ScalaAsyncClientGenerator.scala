@@ -126,73 +126,6 @@ object ScalaAsyncClientGenerator extends App {
   generator.generate(clientOpts)
 }
 
-class AsyncClientCodegen(clientName: String, config: CodegenConfig, rootDir: Option[File] = None) extends Codegen(config) {
-/*
-  override def writeSupportingClasses(apis: Map[(String, String), List[(String, Operation)]],
-    models: Map[String, Model], apiVersion: String): Seq[File] = {
-
-    def apiListF(apis: Map[(String, String), List[(String, Operation)]]): List[Map[String, AnyRef]] = {
-      val apiList = new ListBuffer[Map[String, AnyRef]]
-      apis.map(a => {
-        apiList += Map(
-          "name" -> a._1._2,
-          "filename" -> config.toApiFilename(a._1._2),
-          "className" -> config.toApiName(a._1._2),
-          "basePath" -> a._1._1,
-          "operations" -> {
-            (for (t <- a._2) yield { Map("operation" -> t._2, "path" -> t._1) }).toList
-          })
-      })
-      apiList.toList
-    }
-
-    def modelListF(models: Map[String, Model]): List[Map[String, AnyRef]] = {
-      val modelList = new ListBuffer[HashMap[String, AnyRef]]
-      models.foreach(m => {
-        val json = write(m._2)
-      modelList += HashMap(
-        "modelName" -> m._1,
-        "model" -> m._2,
-        "filename" -> config.toModelFilename(m._1),
-        "modelJson" -> json,
-        "hasMore" -> "true")
-      })
-      modelList.size match {
-        case 0 =>
-        case _ => modelList.last.asInstanceOf[HashMap[String, String]] -= "hasMore"
-      }
-      modelList.map(_.toMap).toList
-    }
-
-    def dataF(apis: Map[(String, String), List[(String, Operation)]],
-              models: Map[String, Model]): Map[String, AnyRef] =
-      Map(
-        "clientName" -> clientName.underscore.pascalize,
-        "projectName" -> clientName.underscore.dasherize,
-        "package" -> config.packageName,
-        "modelPackage" -> config.modelPackage,
-        "apiPackage" -> config.apiPackage,
-        "apis" -> apiListF(apis),
-        "models" -> modelListF(models))
-
-    writeSupportingClasses(apis, models, apiVersion, rootDir, dataF)
-  }
-
-  override def compileTemplate(templateFile: String, rootDir: Option[File] = None, engine: Option[TemplateEngine] = None): (String, (TemplateEngine, Template)) = {
-    val eng = engine getOrElse new TemplateEngine(rootDir orElse Some(new File(".")))
-    val rn = config.templateDir + File.separator + templateFile
-    val rrn = "asyncscala" + File.separator + templateFile
-    val resourceName = if (new File(rn).exists) rn else rrn
-    val is = getInputStream(resourceName)
-    if (is == null)
-      throw new Exception("Missing template: " + resourceName)
-
-    val template = eng.compile(TemplateSource.fromText(resourceName,Source.fromInputStream(is).mkString))
-    (resourceName, eng -> template)
-  }
-*/
-}
-
 class ScalaAsyncClientGenerator(cfg: SwaggerGenConfig) extends BasicGenerator {
   private[this] val pascalizedClientName = cfg.api.clientName.underscore.pascalize
 
@@ -249,7 +182,11 @@ class ScalaAsyncClientGenerator(cfg: SwaggerGenConfig) extends BasicGenerator {
       "with",
       "yield")
   override val importMapping: Map[String, String] = Map(
+      "Set" -> "scala.collection.immutable.Set",
       "Date" -> "java.util.Date",
+      "DateTime" -> "org.joda.time.DateTime",
+      "DateTimeZone" -> "org.joda.time.DateTimeZone",
+      "Chronology" -> "org.joda.time.Chronology",
       "File" -> "java.io.File"
     ) ++ cfg.defaultImports ++ cfg.api.defaultImports
   override val typeMapping = Map(
@@ -292,171 +229,13 @@ class ScalaAsyncClientGenerator(cfg: SwaggerGenConfig) extends BasicGenerator {
 
   override def getBasePath(host: String, basePath: String, fileMap: Option[String]): String =
     cfg.api.baseUrl.getOrElse(super.getBasePath(host, basePath, fileMap))
-/*
-  override def generateClient(args: Array[String]) = {
-    val host = cfg.api.resourceUrl
-    val authorization = {
-      val apiKey = cfg.api.apiKey
-      if(apiKey != None) 
-        Some(ApiKeyValue("api_key", "query", apiKey.get))
-      else 
-        None
-    }
 
-    val doc = {
-      try {
-        ResourceExtractor.fetchListing(getResourcePath(host, fileMap), authorization)
-      } catch {
-        case e: Exception => throw new Exception("unable to read from " + host, e)
-      }
-    }
-
-    implicit val basePath = getBasePath(host, doc.basePath, fileMap)
-
-    val apiReferences = doc.apis
-    if (apiReferences == null)
-      throw new Exception("No APIs specified by resource")
-    val apis = ApiExtractor.fetchApiListings(doc.swaggerVersion, basePath, apiReferences, authorization)
-
-    new SwaggerSpecValidator(doc, apis).validate()
-
-    val allModels = new mutable.HashMap[String, Model]
-    val operations = extractApiOperations(apis, allModels)
-    val operationMap = groupOperationsToFiles(operations)
-
-    val modelMap = prepareModelMap(allModels.toMap)
-
-    val modelFileContents = writeFiles(modelMap, modelTemplateFiles.toMap)
-    val modelFiles = new ListBuffer[File]()
-
-    for((filename, contents) <- modelFileContents) {
-      val file = new java.io.File(filename)
-      modelFiles += file
-      file.getParentFile().mkdirs
-      val fw = new FileWriter(filename, false)
-      fw.write(contents + "\n")
-      fw.close()
-    }
-
-    val apiBundle = prepareApiBundle(operationMap.toMap)
-    val apiInfo = writeFiles(apiBundle, apiTemplateFiles.toMap)
-    val apiFiles = new ListBuffer[File]()
-
-    apiInfo.map(m => {
-      val filename = m._1
-      val file = new java.io.File(filename)
-      apiFiles += file
-      file.getParentFile().mkdirs
-
-      val fw = new FileWriter(filename, false)
-      fw.write(m._2 + "\n")
-      fw.close()
-      println("wrote api " + filename)
-    })
-
-    codegen.writeSupportingClasses2(apiBundle, allModels.toMap, doc.apiVersion) ++
-      modelFiles ++ apiFiles
-  }
-
-
-
-  override def extractApiOperations(apiListings: List[ApiListing], allModels: mutable.HashMap[String, Model] )(implicit basePath:String) = {
-    val output = new mutable.ListBuffer[(String, String, Operation)]
-    apiListings.foreach(apiDescription => {
-      val basePath = apiDescription.basePath
-      val resourcePath = apiDescription.resourcePath
-      if(apiDescription.apis != null) {
-        apiDescription.apis.foreach(api => {
-          for ((apiPath, operation) <- ApiExtractor.extractApiOperations(basePath, api)) {
-            output += ((basePath, apiPath, operation))
-          }
-        })
-      }
-      output.map(op => processApiOperation(op._2, op._3))
-      allModels ++= CoreUtils.extractApiModels(apiDescription, defaultIncludes, typeMapping)
-    })
-    output.toList
-  }
-
-  override def toModelName(name: String) = toDeclaredType(name.pascalize)
-*/
   override def toApiName(name: String) = {
     name.replaceAll("\\{","").replaceAll("\\}", "") match {
       case s: String if(s.length > 0) => s.underscore.pascalize + "Client"
       case _ => "Client"
     }
   }
-
-//
-//  override def nameFromPath(apiPath: String) = resourceNameFromFullPath(apiPath)
-//
-//
-//  override def resourceNameFromFullPath(apiPath: String) =
-//    apiPath.split('/').head.split('.').head
-
-  /**
-   * creates a map of models and properties needed to write source
-   */
-/*
-  override def prepareModelMap(models: Map[String, Model]): List[Map[String, AnyRef]] = {
-    for {
-      (name, schema) <- (models -- defaultIncludes).toList
-      if !(cfg.excludedModelPackages ++ cfg.api.excludedModelPackages).exists(schema.qualifiedType.startsWith)
-    } yield {
-      Map(
-        "name" -> toModelName(name),
-        "className" -> name,
-        "filename" -> toModelFilename(name),
-        "apis" -> None,
-        "models" -> List((name, schema)),
-        "package" -> modelPackage,
-        "invokerPackage" -> invokerPackage,
-        "outputDirectory" -> (destinationDir + File.separator + modelPackage.getOrElse("").replaceAll("\\.", File.separator)),
-        "newline" -> "\n")
-    }
-  }
-
-  override def prepareApiBundle(apiMap: Map[(String, String), List[(String, Operation)]] ): List[Map[String, AnyRef]] = {
-    for {
-      ((basePath, name), operationList) <- apiMap.toList
-      className = toApiName(name)
-    } yield {
-      Map(
-        "baseName" -> name,
-        "filename" -> toApiFilename(name),
-        "name" -> toApiName(name),
-        "className" -> className,
-        "basePath" -> basePath,
-        "package" -> apiPackage,
-        "invokerPackage" -> invokerPackage,
-        "apis" -> Map(className -> operationList.toList),
-        "models" -> None,
-        "outputDirectory" -> (destinationDir + File.separator + apiPackage.getOrElse("").replaceAll("\\.", File.separator)),
-        "newline" -> "\n")
-    }
-  }
-
-  def bundleToSource(bundle:List[Map[String, AnyRef]], templates: Map[String, String]): List[(String, String)] = {
-    bundle.foldLeft(List.empty[(String, String)]) { (acc, m) =>
-      templates.foldLeft(acc) { (out, tem) =>
-        val (file, suffix) = tem
-        (m("outputDirectory").toString + File.separator + m("filename").toString + suffix) -> codegen.generateSource(m, file) :: acc
-      }
-    }
-  }
-
-  def generateAndWrite(bundle: Map[String, AnyRef], templateFile: String) = {
-    val output = codegen.generateSource(bundle, templateFile)
-    val outputDir = new File(bundle("outputDirectory").asInstanceOf[String])
-    outputDir.mkdirs
-
-    val filename = outputDir + File.separator + bundle("filename")
-    val fw = new FileWriter(filename, false)
-    fw.write(output + "\n")
-    fw.close()
-    println("wrote " + filename)
-  }
-*/
 
   // response classes--if you don't want a response class, override and set to None
   override def processResponseClass(responseClass: String): Option[String] = {
