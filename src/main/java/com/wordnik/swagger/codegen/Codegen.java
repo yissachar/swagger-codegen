@@ -12,10 +12,11 @@ import java.io.File;
 public class Codegen extends DefaultGenerator {
   public static void main(String[] args) {
     Options options = new Options();
-    options.addOption("l", "lang", true, "client language to generate");
+    options.addOption("l", "lang", true, "client language to generate, or fqn of the generator class to use");
     options.addOption("o", "output", true, "where to write the generated files");
     options.addOption("i", "input-spec", true, "location of the swagger spec, as URL or file");
     options.addOption("t", "template-dir", true, "folder containing the template files");
+    options.addOption("p", "import-prefix", true, "the prefix to use when defining packages (only golang requires/supports this for now)");
 
     ClientOptInput clientOptInput = new ClientOptInput();
     ClientOpts clientOpts = new ClientOpts();
@@ -36,6 +37,9 @@ public class Codegen extends DefaultGenerator {
       if (cmd.hasOption("t")) {
         clientOpts.getProperties().put("templateDir",
           String.valueOf(cmd.getOptionValue("t")));
+      }
+      if (cmd.hasOption('p')) {
+        clientOpts.getProperties().put("importPrefix", String.valueOf(cmd.getOptionObject('t')));
       }
       if (cmd.hasOption("h")) {
         usage(options);

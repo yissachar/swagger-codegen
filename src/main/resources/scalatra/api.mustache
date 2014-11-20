@@ -14,7 +14,7 @@ import org.scalatra.servlet.{FileUploadSupport, MultipartConfig, SizeConstraintE
 
 import scala.collection.JavaConverters._
 
-class {{classname}} (implicit val swagger: Swagger) extends ScalatraServlet 
+class {{classname}}()(implicit val swagger: Swagger) extends ScalatraServlet
     with FileUploadSupport
     with JacksonJsonSupport
     with SwaggerSupport {
