@@ -1,0 +1,132 @@
+var INSTANCE: ApiInvoker = ApiInvoker()
+
+class ApiInvoker {
+  var defaultHeaderMap: [String: String] = [String: String]()
+
+  class func getInstance() -> ApiInvoker {
+    return INSTANCE
+  }
+
+  func addDefaultHeader(key: String, value: String) {
+    defaultHeaderMap[key] = value
+  }
+
+  func escapeString(str: String) -> String {
+    return str.stringByAddingPercentEncodingWithAllowedCharacters(.URLQueryAllowedCharacterSet())!
+  }
+
+  class func deserialize(json: AnyObject?, type: Any.Type) -> AnyObject? {
+    var deserialized: AnyObject? = nil
+
+    if let jsonDict = json as? NSDictionary {      
+      {{#models}}
+      {{#model}}      
+      if type is {{classname}}.Type || type is {{classname}}?.Type {
+        deserialized = {{classname}}(json: jsonDict)
+      }
+      {{/model}}
+      {{/models}}
+    } else if let jsonArray = json as? NSArray { 
+      {{#models}}
+      {{#model}}      
+      if type is [{{classname}}]?.Type {
+        var array: [{{classname}}] = [{{classname}}]()
+        for item in jsonArray {
+          let deserializedItem: AnyObject? = ApiInvoker.deserialize(item, type: {{classname}}.self)
+          if deserializedItem != nil {
+            array.append(deserializedItem! as {{classname}})
+          }
+        }
+        deserialized = array
+      }
+      {{/model}}
+      {{/models}}
+    } else if let jsonString = json as? String {
+      deserialized = jsonString.substringWithRange(Range<String.Index>(start: advance(jsonString.startIndex, 1), end: advance(jsonString.endIndex, -2)))
+    } 
+    
+    return deserialized
+  }
+
+  class func serialize(obj: NSObject?) -> String {
+    if let jsonModel = obj as? JsonModel {
+      return jsonModel.toJson()
+    } else if let str = obj as? String {
+      return str
+    } else if obj != nil {    
+      return obj!.description    
+    } else {
+      return ""
+    }
+  }
+
+  func invokeAPI<T>(host: String, path: String, method: String, queryParams: [String: String], body: NSObject,  headerParams: [String: String], formParams: [String: String], contentType: String, callback: ApiCallback<T>?, type: T.Type) {
+
+    var querystring: String = String()
+    
+    for (key, value) in queryParams {
+      if querystring.isEmpty {
+          querystring += "?"
+      } else {
+          querystring += "&"
+      }
+      querystring += escapeString(key) + "=" + escapeString(value)
+    }
+    
+    let url: NSURL? = NSURL(string: host + path + querystring)
+    let session: NSURLSession = NSURLSession.sharedSession()
+    let request: NSMutableURLRequest = NSMutableURLRequest(URL: url!)
+    request.HTTPMethod = method
+
+    if method == "PUT" && contentType == "application/x-www-form-urlencoded" {
+      var formBody = ""
+
+      for (key, value) in formParams {
+        if(!value.isEmpty) {
+          if(formBody.isEmpty) {
+            formBody += "&"
+          } else {
+            formBody += escapeString(key) + "=" + escapeString(value)
+          }
+        }
+      }
+      request.HTTPBody = formBody.dataUsingEncoding(NSUTF8StringEncoding)
+    } else {
+      request.HTTPBody = ApiInvoker.serialize(body).dataUsingEncoding(NSUTF8StringEncoding)
+    }
+    
+    for (key, value) in headerParams {
+      request.addValue(value, forHTTPHeaderField: key)
+    }
+    
+    for (key, value) in defaultHeaderMap {
+      request.addValue(value, forHTTPHeaderField: key)
+    }
+
+    request.addValue(contentType, forHTTPHeaderField: "Content-Type")
+    
+    
+    let dataTask = session.dataTaskWithRequest(request, completionHandler: { (data, response, error) in
+      if callback != nil {
+        let httpResponse : NSHTTPURLResponse = response as NSHTTPURLResponse
+        if httpResponse.statusCode >= 400 {
+          callback!.onFailure()
+        } else {
+          var err: NSError?
+          var json: NSDictionary = NSJSONSerialization.JSONObjectWithData(data, options: NSJSONReadingOptions.MutableContainers, error: &err) as NSDictionary
+          var deserialized: AnyObject? = ApiInvoker.deserialize(json, type: type)
+          
+          if type is VoidResult.Type {
+            callback!.onSuccess(VoidResult() as T)
+          } else if deserialized != nil {
+            callback!.onSuccess(deserialized as T)
+          } else {
+            callback!.onFailure()
+          }
+        }
+      }
+    })
+    dataTask.resume()
+  }
+
+}

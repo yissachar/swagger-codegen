@@ -1,0 +1,66 @@
+{{#operations}}
+class {{classname}} {
+  var basePath: String = "{{basePath}}"
+  var apiInvoker: ApiInvoker = ApiInvoker.getInstance()
+
+  {{#operation}}
+  {{#errorList}} //error info- code: {{code}} reason: "{{reason}}" model: {{#responseModel}}{{responseModel}}
+  {{/responseModel}}{{^responseModel}}<none>
+  {{/responseModel}}
+  {{/errorList}}
+  func {{nickname}}({{#allParams}}{{paramName}}: {{{dataType}}}, {{/allParams}}callback: ApiCallback<{{#returnType}}{{{returnType}}} {{/returnType}}{{^returnType}}VoidResult{{/returnType}}>? = nil) {
+    var postBody: NSObject = {{#bodyParam}}{{paramName}}{{/bodyParam}}{{^bodyParam}}""{{/bodyParam}}
+    {{#requiredParamCount}}
+    // verify required params are set
+    if({{/requiredParamCount}}{{#requiredParams}} {{paramName}} == nil {{#hasMore}}|| {{/hasMore}}{{/requiredParams}}{{#requiredParamCount}}) {
+       throw new ApiException(400, "missing required params")
+    }
+    {{/requiredParamCount}}
+
+    // create path and map variables
+    let path: String = "{{path}}".replaceAll("\\{format\\}", withReplacement: "json"){{#pathParams}}
+      .replaceAll("\\{" + "{{paramName}}" + "\\}", withReplacement: apiInvoker.escapeString(({{{paramName}}} as NSObject).description)){{/pathParams}}
+
+    // query params
+    var queryParams: [String: String] = [String: String]()
+    var headerParams: [String: String] = [String: String]()
+    var formParams: [String: String] = [String: String]()
+
+    {{#queryParams}}queryParams["{{baseName}}"] = ({{paramName}} as NSObject).description
+    {{/queryParams}}
+    {{#headerParams}}headerParams["{{baseName}}"] = ({{paramName}} as NSObject).description
+    {{/headerParams}}
+    
+    let contentTypes: [String] = [
+      {{#consumes}}"{{mediaType}}"{{#hasMore}},{{/hasMore}}{{/consumes}}
+    ]
+
+    let contentType: String = contentTypes.count > 0 ? contentTypes[0] : "application/json"
+
+    if contentType.hasPrefix("multipart/form-data") {
+      var hasFields: Bool = false
+      var mp: String = ""
+      let boundary: String = "-------tgyhj3vasdf22-------"
+      {{#formParams}}{{#notFile}}
+      hasFields = true
+      mp += "\r\n--%\(boundary)\r\n"
+      mp += "Content-Disposition: form-data; name=\"{{baseName}}\"\r\n\r\n\({{paramName}})"
+      {{/notFile}}{{#isFile}}
+      mp += "\r\n--%\(boundary)\r\n"
+      mp += "Content-Disposition: form-data; name=\"{{baseName}}\"\r\n\r\n\({{paramName}})"
+      {{/isFile}}{{/formParams}}
+      if(hasFields) {
+        postBody = mp
+      }
+    }
+    else {
+      {{#formParams}}{{#notFile}}formParams["{{baseName}}"] = {{paramName}}{{/notFile}}
+      {{/formParams}}
+    }    
+
+    apiInvoker.invokeAPI(basePath, path: path, method: "{{httpMethod}}", queryParams: queryParams, body: postBody, 
+      headerParams: headerParams, formParams: formParams, contentType: contentType, callback: callback, type: {{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}VoidResult{{/returnType}}.self)
+  }
+  {{/operation}}
+}
+{{/operations}}

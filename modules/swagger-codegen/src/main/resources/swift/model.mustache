@@ -1,0 +1,13 @@
+{{#models}}
+
+{{#model}}{{#description}}
+/**
+ * {{description}}
+ **/{{/description}}
+class {{classname}}: JsonModel{{#parent}}, {{{parent}}}{{/parent}} {
+  {{#vars}}
+  var {{name}}: {{{datatype}}}? = nil{{/vars}}
+ 
+}
+{{/model}}
+{{/models}}
