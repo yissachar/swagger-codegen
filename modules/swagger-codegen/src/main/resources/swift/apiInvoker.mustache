@@ -110,7 +110,8 @@ class ApiInvoker {
       if callback != nil {
         let httpResponse : NSHTTPURLResponse = response as NSHTTPURLResponse
         if httpResponse.statusCode >= 400 {
-          callback!.onFailure()
+          let message = NSString(data: data, encoding: NSUTF8StringEncoding) ?? ""
+          callback!.onFailure(ApiException(errorCode: httpResponse.statusCode, message: message))
         } else {
           var err: NSError?
           var json: NSDictionary = NSJSONSerialization.JSONObjectWithData(data, options: NSJSONReadingOptions.MutableContainers, error: &err) as NSDictionary
@@ -121,7 +122,7 @@ class ApiInvoker {
           } else if deserialized != nil {
             callback!.onSuccess(deserialized as T)
           } else {
-            callback!.onFailure()
+            callback!.onFailure(ApiException(errorCode: 500, message: "Could not deserialize response"))
           }
         }
       }

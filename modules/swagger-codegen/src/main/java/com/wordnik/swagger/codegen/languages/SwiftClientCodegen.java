@@ -50,6 +50,7 @@ public class SwiftClientCodegen extends DefaultCodegen implements CodegenConfig 
     supportingFiles.add(new SupportingFile("SWGDate.swift", sourceFolder, "SWGDate.swift"));
     supportingFiles.add(new SupportingFile("SWGFile.swift", sourceFolder, "SWGFile.swift"));
     supportingFiles.add(new SupportingFile("VoidResult.swift", sourceFolder, "VoidResult.swift"));
+    supportingFiles.add(new SupportingFile("ApiException.swift", sourceFolder, "ApiException.swift"));
 
     languageSpecificPrimitives = new HashSet<String>(
       Arrays.asList(
