@@ -1,19 +1,19 @@
 {{#operations}}
 class {{classname}} {
   var basePath: String = "{{basePath}}"
-  var apiInvoker: ApiInvoker = ApiInvoker.getInstance()
+  var apiInvoker: APIInvoker = APIInvoker.getInstance()
 
   {{#operation}}
   {{#errorList}} //error info- code: {{code}} reason: "{{reason}}" model: {{#responseModel}}{{responseModel}}
   {{/responseModel}}{{^responseModel}}<none>
   {{/responseModel}}
   {{/errorList}}
-  func {{nickname}}({{#allParams}}{{paramName}}: {{{dataType}}}, {{/allParams}}callback: ApiCallback<{{#returnType}}{{{returnType}}} {{/returnType}}{{^returnType}}VoidResult{{/returnType}}>? = nil) {
+  func {{nickname}}({{#allParams}}{{paramName}}: {{{dataType}}}, {{/allParams}}callback: APICallback<{{#returnType}}{{{returnType}}} {{/returnType}}{{^returnType}}VoidResult{{/returnType}}>? = nil) {
     var postBody: NSObject = {{#bodyParam}}{{paramName}}{{/bodyParam}}{{^bodyParam}}""{{/bodyParam}}
     {{#requiredParamCount}}
     // verify required params are set
     if({{/requiredParamCount}}{{#requiredParams}} {{paramName}} == nil {{#hasMore}}|| {{/hasMore}}{{/requiredParams}}{{#requiredParamCount}}) {
-       throw new ApiException(400, "missing required params")
+       throw new APIException(400, "missing required params")
     }
     {{/requiredParamCount}}
 

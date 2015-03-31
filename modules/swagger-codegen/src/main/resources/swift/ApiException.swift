@@ -1,4 +1,4 @@
-class ApiException {
+class APIException {
 	var errorCode: Int
 	var message: String 
 

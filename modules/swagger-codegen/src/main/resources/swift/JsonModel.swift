@@ -1,4 +1,4 @@
-class JsonModel {  
+class JSONModel {  
   
   func toJson() -> String {        
     fatalError("This method must be overridden")
@@ -24,7 +24,7 @@ class JsonModel {
 
     if let str = object as? String {
       json += "\"\(str)\""
-    } else if let model = object as? JsonModel {
+    } else if let model = object as? JSONModel {
       json += model.toJson()
     } else if let array = object as? [AnyObject] {
       json += "["

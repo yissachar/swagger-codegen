@@ -4,7 +4,7 @@
 /**
  * {{description}}
  **/{{/description}}
-class {{classname}}: JsonModel{{#parent}}, {{{parent}}}{{/parent}} {
+class {{classname}}: JSONModel{{#parent}}, {{{parent}}}{{/parent}} {
   {{#vars}}
   var {{name}}: {{{datatype}}}? = nil{{/vars}}
 
@@ -19,7 +19,7 @@ class {{classname}}: JsonModel{{#parent}}, {{{parent}}}{{/parent}} {
       let mirrorType = properties[key]
 
       if (value is NSDictionary || value is NSArray) && mirrorType != nil {
-        value = ApiInvoker.deserialize(jsonValue, type: mirrorType!.valueType)
+        value = APIInvoker.deserialize(jsonValue, type: mirrorType!.valueType)
       }
 
       switch key {

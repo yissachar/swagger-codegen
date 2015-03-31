@@ -1,9 +1,9 @@
-class ApiCallback<T> {
+class APICallback<T> {
     
   var success : (T!) -> Void
-  var fail : (ApiException) -> Void
+  var fail : (APIException) -> Void
   
-  init(success : (T!) -> Void, fail : (ApiException) -> Void) {
+  init(success : (T!) -> Void, fail : (APIException) -> Void) {
     self.success = success
     self.fail = fail
   }
@@ -12,7 +12,7 @@ class ApiCallback<T> {
     success(result)
   }
   
-  func onFailure(exception: ApiException) {
+  func onFailure(exception: APIException) {
     fail(exception)
   }
 }

@@ -44,13 +44,13 @@ public class SwiftClientCodegen extends DefaultCodegen implements CodegenConfig 
         "unowned", "var", "weak", "where", "while", "willSet")
     );
 
-    supportingFiles.add(new SupportingFile("apiInvoker.mustache", sourceFolder, "ApiInvoker.swift"));
-    supportingFiles.add(new SupportingFile("JsonModel.swift", sourceFolder, "JsonModel.swift"));
-    supportingFiles.add(new SupportingFile("ApiCallback.swift", sourceFolder, "ApiCallback.swift"));
+    supportingFiles.add(new SupportingFile("apiInvoker.mustache", sourceFolder, "APIInvoker.swift"));
+    supportingFiles.add(new SupportingFile("JSONModel.swift", sourceFolder, "JSONModel.swift"));
+    supportingFiles.add(new SupportingFile("APICallback.swift", sourceFolder, "APICallback.swift"));
     supportingFiles.add(new SupportingFile("SWGDate.swift", sourceFolder, "SWGDate.swift"));
     supportingFiles.add(new SupportingFile("SWGFile.swift", sourceFolder, "SWGFile.swift"));
     supportingFiles.add(new SupportingFile("VoidResult.swift", sourceFolder, "VoidResult.swift"));
-    supportingFiles.add(new SupportingFile("ApiException.swift", sourceFolder, "ApiException.swift"));
+    supportingFiles.add(new SupportingFile("APIException.swift", sourceFolder, "APIException.swift"));
 
     languageSpecificPrimitives = new HashSet<String>(
       Arrays.asList(
@@ -88,6 +88,13 @@ public class SwiftClientCodegen extends DefaultCodegen implements CodegenConfig 
   @Override
   public String escapeReservedWord(String name) {
     return "_" + name;
+  }
+
+  @Override
+  public String toApiName(String name) {
+    if(name.length() == 0)
+      return "DefaultAPI";
+    return initialCaps(name + "API");
   }
 
   @Override

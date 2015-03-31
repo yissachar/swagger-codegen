@@ -1,9 +1,9 @@
-var INSTANCE: ApiInvoker = ApiInvoker()
+var INSTANCE: APIInvoker = APIInvoker()
 
-class ApiInvoker {
+class APIInvoker {
   var defaultHeaderMap: [String: String] = [String: String]()
 
-  class func getInstance() -> ApiInvoker {
+  class func getInstance() -> APIInvoker {
     return INSTANCE
   }
 
@@ -32,7 +32,7 @@ class ApiInvoker {
       if type is [{{classname}}]?.Type {
         var array: [{{classname}}] = [{{classname}}]()
         for item in jsonArray {
-          let deserializedItem: AnyObject? = ApiInvoker.deserialize(item, type: {{classname}}.self)
+          let deserializedItem: AnyObject? = APIInvoker.deserialize(item, type: {{classname}}.self)
           if deserializedItem != nil {
             array.append(deserializedItem! as {{classname}})
           }
@@ -49,7 +49,7 @@ class ApiInvoker {
   }
 
   class func serialize(obj: AnyObject?) -> String {
-    if let jsonModel = obj as? JsonModel {
+    if let jsonModel = obj as? JSONModel {
       return jsonModel.toJson()
     } else if let str = obj as? String {
       return str
@@ -60,7 +60,7 @@ class ApiInvoker {
     }
   }
 
-  func invokeAPI<T>(host: String, path: String, method: String, queryParams: [String: String], body: NSObject,  headerParams: [String: String], formParams: [String: String], contentType: String, callback: ApiCallback<T>?, type: T.Type) {
+  func invokeAPI<T>(host: String, path: String, method: String, queryParams: [String: String], body: NSObject,  headerParams: [String: String], formParams: [String: String], contentType: String, callback: APICallback<T>?, type: T.Type) {
 
     var querystring: String = String()
     
@@ -92,7 +92,7 @@ class ApiInvoker {
       }
       request.HTTPBody = formBody.dataUsingEncoding(NSUTF8StringEncoding)
     } else {
-      request.HTTPBody = ApiInvoker.serialize(body).dataUsingEncoding(NSUTF8StringEncoding)
+      request.HTTPBody = APIInvoker.serialize(body).dataUsingEncoding(NSUTF8StringEncoding)
     }
     
     for (key, value) in headerParams {
@@ -111,18 +111,18 @@ class ApiInvoker {
         let httpResponse : NSHTTPURLResponse = response as NSHTTPURLResponse
         if httpResponse.statusCode >= 400 {
           let message = NSString(data: data, encoding: NSUTF8StringEncoding) ?? ""
-          callback!.onFailure(ApiException(errorCode: httpResponse.statusCode, message: message))
+          callback!.onFailure(APIException(errorCode: httpResponse.statusCode, message: message))
         } else {
           var err: NSError?
           var json: NSDictionary = NSJSONSerialization.JSONObjectWithData(data, options: NSJSONReadingOptions.MutableContainers, error: &err) as NSDictionary
-          var deserialized: AnyObject? = ApiInvoker.deserialize(json, type: type)
+          var deserialized: AnyObject? = APIInvoker.deserialize(json, type: type)
           
           if type is VoidResult.Type {
             callback!.onSuccess(VoidResult() as T)
           } else if deserialized != nil {
             callback!.onSuccess(deserialized as T)
           } else {
-            callback!.onFailure(ApiException(errorCode: 500, message: "Could not deserialize response"))
+            callback!.onFailure(APIException(errorCode: 500, message: "Could not deserialize response"))
           }
         }
       }

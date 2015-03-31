@@ -1,3 +1,3 @@
-class VoidResult : JsonModel {
+class VoidResult : JSONModel {
 	
 }
