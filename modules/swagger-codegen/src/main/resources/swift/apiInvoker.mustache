@@ -48,7 +48,7 @@ class ApiInvoker {
     return deserialized
   }
 
-  class func serialize(obj: NSObject?) -> String {
+  class func serialize(obj: AnyObject?) -> String {
     if let jsonModel = obj as? JsonModel {
       return jsonModel.toJson()
     } else if let str = obj as? String {

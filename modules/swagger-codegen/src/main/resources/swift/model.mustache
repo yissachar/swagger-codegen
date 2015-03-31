@@ -7,6 +7,37 @@
 class {{classname}}: JsonModel{{#parent}}, {{{parent}}}{{/parent}} {
   {{#vars}}
   var {{name}}: {{{datatype}}}? = nil{{/vars}}
+
+  init(json: NSDictionary = NSDictionary()) {
+    super.init()
+
+    let properties: [String: MirrorType] = getProperties()
+    for (jsonKey, jsonValue) in json {
+      let key: String = jsonKey as String
+      
+      var value: AnyObject? = jsonValue
+      let mirrorType = properties[key]
+
+      if (value is NSDictionary || value is NSArray) && mirrorType != nil {
+        value = ApiInvoker.deserialize(jsonValue, type: mirrorType!.valueType)
+      }
+
+      switch key {
+        {{#vars}}case "{{name}}": {{name}} = value as {{{datatype}}}?
+        {{/vars}}
+        default: break
+      }
+
+    }
+  }
+
+  override func toJson() -> String {
+    var json = "{"
+    {{#vars}}json += "\"{{name}}\": " + jsonify({{name}}){{#hasMore}} + ","{{/hasMore}}
+    {{/vars}}
+    json += "}"
+    return json
+  }
  
 }
 {{/model}}
