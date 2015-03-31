@@ -122,7 +122,7 @@ class APIInvoker {
           } else if deserialized != nil {
             callback!.onSuccess(deserialized as T)
           } else {
-            callback!.onFailure(APIException(errorCode: 500, message: "Could not deserialize response"))
+            callback!.onFailure(APIException(errorCode: 500, message: "Deserialization Failure"))
           }
         }
       }
